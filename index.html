@@ -136,6 +136,17 @@
     
     // 2. 你的 Google Apps Script 網頁應用程式網址
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdE3CRPxQkwhd9-RW644BY6oCZUPyrenHAV0UlqfBapt543okqNREiCMmTKW31A9h-Sg/exec';
+	
+	// --- 工具函式：防止 XSS 攻擊 (將特殊字元轉義) ---
+    function escapeHtml(text) {
+        if (!text) return "";
+        return String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
     
     // ====================================================
 
@@ -170,22 +181,24 @@
         const validData = data.filter(row => row['原料名稱'] && row['原料名稱'].trim() !== '');
 
         validData.reverse().forEach(row => {
-            // 處理圖片
+            // --- 修改重點 1: 處理圖片連結也要防護 ---
             let imgDisplay = '<span class="text-muted">-</span>';
-            // 去除單引號並檢查是否為連結
             let link = row['圖片連結'] ? row['圖片連結'].replace(/'/g, "").trim() : "";
             
             if(link.startsWith('http')) {
-                imgDisplay = `<img src="${link}" class="item-img" alt="圖">`;
+                // 注意這裡：src 裡面包了 escapeHtml(link)
+                imgDisplay = `<img src="${escapeHtml(link)}" class="item-img" alt="圖">`;
             }
 
             const tr = document.createElement('tr');
+            
+            // --- 修改重點 2: 所有的文字欄位都包上 escapeHtml(...) ---
             tr.innerHTML = `
                 <td>${imgDisplay}</td>
-                <td class="fw-bold text-primary">${row['原料名稱']}</td>
-                <td>${row['地圖編號'] || ''}</td>
-                <td>${row['採集地點'] || ''}</td>
-                <td><small class="text-muted">${row['備註'] || ''}</small></td>
+                <td class="fw-bold text-primary">${escapeHtml(row['原料名稱'])}</td>
+                <td>${escapeHtml(row['地圖編號'] || '')}</td>
+                <td>${escapeHtml(row['採集地點'] || '')}</td>
+                <td><small class="text-muted">${escapeHtml(row['備註'] || '')}</small></td>
             `;
             tbody.appendChild(tr);
         });
