@@ -7,68 +7,68 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <style>
-        body { background-color: #f4f4f9; padding-top: 20px; padding-bottom: 50px; }
-        .wiki-search-box { background: #e2e3e5; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
-        .item-img { max-width: 50px; max-height: 50px; border-radius: 4px; object-fit: contain;}
-        .loading { text-align: center; color: #666; font-style: italic; }
-        h1 { color: #333; font-weight: bold; }
-        #dbInput { border: 2px solid #0d6efd; background-color: #fff; }
+        body { background-color: #f8f9fa; padding-top: 20px; font-family: "Microsoft JhengHei", sans-serif; }
+        .wiki-search-box { background: #e9ecef; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 5px solid #0d6efd; }
+        .item-img { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; border: 1px solid #ddd; }
+        .loading { text-align: center; color: #666; margin-top: 20px; }
+        h1 { color: #333; font-weight: 800; letter-spacing: 1px; }
+        /* 資料庫搜尋框美化 */
+        #dbInput { border: 2px solid #0d6efd; background-color: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
         
-        /* 新增按鈕樣式 */
-        .btn-add-data {
-            background-color: #198754; 
-            color: white;
-            font-weight: bold;
-            margin-top: 10px;
+        /* 懸浮按鈕樣式 */
+        .btn-float { 
+            position: fixed; bottom: 30px; right: 30px; 
+            border-radius: 50%; width: 60px; height: 60px; 
+            font-size: 24px; box-shadow: 0 4px 15px rgba(13, 110, 253, 0.4); 
+            z-index: 1000; transition: transform 0.2s;
         }
-        .btn-add-data:hover { background-color: #146c43; color: white; }
+        .btn-float:hover { transform: scale(1.1); }
+        
+        .modal-header { background-color: #0d6efd; color: white; }
     </style>
 </head>
 <body>
 
-<div class="container">
+<div class="container pb-5">
     <div class="text-center mb-4">
-        <h1>FF14 採集原料資料庫</h1>
-        <p class="text-muted">即時查詢採集地點與資訊</p>
+        <h1><i class="bi bi-database-fill-gear"></i> FF14 採集原料資料庫</h1>
+        <p class="text-muted">即時查詢與回報採集地點</p>
     </div>
 
     <div class="wiki-search-box">
         <h5><i class="bi bi-search"></i> 搜尋 FF14 灰機 Wiki</h5>
         <div class="input-group">
-            <input type="text" id="wikiInput" class="form-control" placeholder="輸入關鍵字 (例如: 鐵礦)...">
-            <button class="btn btn-dark" onclick="searchWiki()">搜尋 Wiki</button>
+            <input type="text" id="wikiInput" class="form-control" placeholder="輸入關鍵字 (例如: 靈銀礦)...">
+            <button class="btn btn-secondary" onclick="searchWiki()">搜尋 Wiki</button>
         </div>
-        <small class="text-muted">這將會開啟新分頁並透過 Google 搜尋 ff14.huijiwiki.com 站內資料</small>
+        <small class="text-muted">將開啟新分頁透過 Google 搜尋 ff14.huijiwiki.com</small>
     </div>
 
     <hr>
 
     <div class="mb-3">
         <label for="dbInput" class="form-label fw-bold text-primary">
-            <i class="bi bi-funnel-fill"></i> 批量搜尋原料 (只顯示符合的項目)：
+            <i class="bi bi-funnel-fill"></i> 搜尋資料庫 (支援多關鍵字)：
         </label>
-        <textarea id="dbInput" class="form-control" rows="2" 
-            placeholder="在此輸入多個關鍵字，請用「空白」或「逗號」分隔。&#10;例如：鐵礦 靈銀礦 雲母" 
+        <textarea id="dbInput" class="form-control" rows="1" 
+            placeholder="在此輸入關鍵字，例如：鐵礦 靈銀礦 (用空白分隔)" 
             onkeyup="filterTable()"></textarea>
-        
-        <div class="d-flex justify-content-between align-items-start mt-2">
-            <small class="text-muted">支援同時搜尋多個物品，只要符合任一關鍵字即會顯示。</small>
-            <button class="btn btn-add-data btn-sm" data-bs-toggle="modal" data-bs-target="#addDataModal">
-                <i class="bi bi-plus-circle-fill"></i> 找不到資料？新增一筆
-            </button>
-        </div>
     </div>
 
     <div class="table-responsive bg-white shadow-sm p-3 rounded">
-        <div id="loadingMsg" class="loading">正在從 Google Sheets 讀取資料...</div>
+        <div id="loadingMsg" class="loading">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2">正在從 Google Sheets 讀取資料...</p>
+        </div>
+
         <table class="table table-hover align-middle d-none" id="dataTable">
             <thead class="table-primary">
                 <tr>
-                    <th>圖片</th>
-                    <th>原料名稱</th>
-                    <th>地圖編號</th>
-                    <th>採集地點</th>
-                    <th>備註</th>
+                    <th width="10%">圖片</th>
+                    <th width="20%">原料名稱</th>
+                    <th width="20%">地圖編號</th>
+                    <th width="25%">採集地點</th>
+                    <th width="25%">備註</th>
                 </tr>
             </thead>
             <tbody id="tableBody">
@@ -77,194 +77,192 @@
     </div>
 </div>
 
-<div class="modal fade" id="addDataModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header bg-success text-white">
-        <h5 class="modal-title"><i class="bi bi-pencil-square"></i> 新增原料至資料庫</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <form id="addDataForm">
-            <div class="mb-3">
-                <label class="form-label">原料名稱 <span class="text-danger">*</span></label>
-                <input type="text" name="itemName" class="form-control" required placeholder="例如：靈銀礦">
+<button class="btn btn-primary btn-float" data-bs-toggle="modal" data-bs-target="#addModal" title="新增資料">
+    <i class="bi bi-plus-lg"></i>
+</button>
+
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pen-fill"></i> 新增採集資訊</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="mb-3">
-                <label class="form-label">地圖編號</label>
-                <input type="text" name="mapId" class="form-control" placeholder="例如：Lakeland">
+            <div class="modal-body">
+                <form id="addForm" onsubmit="submitData(event)">
+                    <div class="mb-3">
+                        <label class="form-label">原料名稱 <span class="text-danger">*</span></label>
+                        <input type="text" name="itemName" class="form-control" required placeholder="例如：靈銀礦">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">地圖編號</label>
+                        <input type="text" name="mapId" class="form-control" placeholder="例如：Lakeland">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">採集地點 (座標)</label>
+                        <input type="text" name="loc" class="form-control" placeholder="例如：X:10.5 Y:20.1">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">圖片連結 (選填)</label>
+                        <input type="text" name="imgLink" class="form-control" placeholder="請貼上圖片網址 (https://...)">
+                        <div class="form-text">這將會儲存在表格的最後一欄</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">備註</label>
+                        <textarea name="note" class="form-control" rows="2"></textarea>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" id="submitBtn" class="btn btn-primary">送出資料</button>
+                    </div>
+                </form>
             </div>
-            <div class="mb-3">
-                <label class="form-label">採集地點 (座標)</label>
-                <input type="text" name="locName" class="form-control" placeholder="例如：X:10 Y:20">
-            </div>
-            <div class="mb-3">
-                <label class="form-label">圖片連結 (選填)</label>
-                <input type="url" name="imgUrl" class="form-control" placeholder="https://...">
-            </div>
-            <div class="mb-3">
-                <label class="form-label">備註</label>
-                <textarea name="note" class="form-control" rows="2" placeholder="採集時間、特殊條件等"></textarea>
-            </div>
-            <div class="d-grid">
-                <button type="submit" id="submitBtn" class="btn btn-success">送出資料</button>
-            </div>
-        </form>
-      </div>
+        </div>
     </div>
-  </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-    // configuration
-    // ==========================================
-    // 1. 讀取用的 CSV 連結 (原有的)
+    // ================= 設定區 (請修改這裡) =================
+    
+    // 1. 你的 Google Sheet CSV 連結
     const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSKLU1K1ol-mP7n2gz7clz522QmjoTAMRfz1lxSKjBwTPMvC5eMimPycZ-RsknpuYkUPaWmHWqj-QNe/pub?output=csv'; 
     
-    // 2. 寫入用的 GAS 應用程式網址 (請填入第一步部署後產生的網址)
-    const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycbzdE3CRPxQkwhd9-RW644BY6oCZUPyrenHAV0UlqfBapt543okqNREiCMmTKW31A9h-Sg/exec'; 
-    // ==========================================
+    // 2. 你的 Google Apps Script 網頁應用程式網址
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdE3CRPxQkwhd9-RW644BY6oCZUPyrenHAV0UlqfBapt543okqNREiCMmTKW31A9h-Sg/exec';
+    
+    // ====================================================
 
-    // 1. 頁面載入時執行
-    document.addEventListener('DOMContentLoaded', function() {
-        loadData();
-    });
+    // 頁面載入完成後執行
+    document.addEventListener('DOMContentLoaded', loadData);
 
-    // 2. 讀取 Google Sheet 資料
+    // --- 功能 1: 讀取資料並顯示 ---
     function loadData() {
         Papa.parse(SHEET_CSV_URL, {
             download: true,
-            header: true,
+            header: true, // 重要：這樣才能用 row['原料名稱'] 讀取
             complete: function(results) {
                 renderTable(results.data);
                 document.getElementById('loadingMsg').style.display = 'none';
                 document.getElementById('dataTable').classList.remove('d-none');
             },
             error: function(err) {
-                document.getElementById('loadingMsg').innerText = "讀取失敗，請檢查 CSV 連結是否正確。";
+                console.error(err);
+                document.getElementById('loadingMsg').innerHTML = 
+                    `<span class="text-danger">讀取失敗，請檢查 CSV 連結。<br>錯誤訊息：${err.message}</span>`;
             }
         });
     }
 
-    // 3. 渲染表格
+    // 渲染表格 (網頁顯示邏輯：圖片在左，文字在右)
     function renderTable(data) {
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = ''; 
+        
+        // 反轉陣列，讓新資料顯示在最上面
+        // 過濾掉空行 (有些 CSV 最後會有一行空的)
+        const validData = data.filter(row => row['原料名稱'] && row['原料名稱'].trim() !== '');
 
-        data.forEach(row => {
-            if(!row['原料名稱']) return; 
+        validData.reverse().forEach(row => {
+            // 處理圖片
+            let imgDisplay = '<span class="text-muted">-</span>';
+            // 去除單引號並檢查是否為連結
+            let link = row['圖片連結'] ? row['圖片連結'].replace(/'/g, "").trim() : "";
+            
+            if(link.startsWith('http')) {
+                imgDisplay = `<img src="${link}" class="item-img" alt="圖">`;
+            }
 
             const tr = document.createElement('tr');
-            
-            // 處理圖片壞圖或無圖片的情況
-            const imgHtml = row['圖片連結'] 
-                ? `<img src="${row['圖片連結']}" class="item-img" onerror="this.style.display='none'">` 
-                : '<span class="text-muted">-</span>';
-
             tr.innerHTML = `
-                <td>${imgHtml}</td>
+                <td>${imgDisplay}</td>
                 <td class="fw-bold text-primary">${row['原料名稱']}</td>
                 <td>${row['地圖編號'] || ''}</td>
                 <td>${row['採集地點'] || ''}</td>
-                <td><small>${row['備註'] || ''}</small></td>
+                <td><small class="text-muted">${row['備註'] || ''}</small></td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    // 4. 資料庫內篩選功能
+    // --- 功能 2: 搜尋資料庫 ---
     function filterTable() {
         const input = document.getElementById('dbInput');
         const filterValue = input.value.toUpperCase().trim();
-        const table = document.getElementById('dataTable');
-        const tr = table.getElementsByTagName('tr');
+        const rows = document.getElementById('tableBody').getElementsByTagName('tr');
+        
+        const keywords = filterValue.split(/[\s,]+/).filter(k => k); // 切割關鍵字
 
-        if (filterValue === "") {
-            for (let i = 1; i < tr.length; i++) tr[i].style.display = "";
-            return;
-        }
-
-        const keywords = filterValue.split(/[\s,，、\n]+/).filter(k => k.length > 0);
-
-        for (let i = 1; i < tr.length; i++) {
-            const tds = tr[i].getElementsByTagName('td');
-            const nameText = (tds[1].textContent || tds[1].innerText).trim().toUpperCase();
-            const mapText = (tds[2].textContent || tds[2].innerText).toUpperCase();
-            const locText = (tds[3].textContent || tds[3].innerText).toUpperCase();
-            const noteText = (tds[4].textContent || tds[4].innerText).toUpperCase();
-
-            let isMatch = false;
-            for (let j = 0; j < keywords.length; j++) {
-                const k = keywords[j];
-                // 原料名稱精確比對，其他模糊比對
-                if (nameText === k || mapText.indexOf(k) > -1 || locText.indexOf(k) > -1 || noteText.indexOf(k) > -1) {
-                    isMatch = true;
-                    break;
-                }
+        for (let row of rows) {
+            if (keywords.length === 0) {
+                row.style.display = ""; 
+                continue;
             }
-            tr[i].style.display = isMatch ? "" : "none";
+            // 取得整行的文字內容
+            const text = row.innerText.toUpperCase();
+            // 檢查是否包含任一關鍵字
+            const isMatch = keywords.some(k => text.includes(k));
+            row.style.display = isMatch ? "" : "none";
         }
     }
 
-    // 5. 灰機 Wiki 搜尋功能
+    // --- 功能 3: Wiki 搜尋 ---
     function searchWiki() {
         const query = document.getElementById('wikiInput').value;
         if (query) {
             const url = `https://www.google.com/search?q=site%3Aff14.huijiwiki.com+${encodeURIComponent(query)}`;
             window.open(url, '_blank');
-        } else {
-            alert("請輸入要搜尋的關鍵字");
         }
     }
+    // 綁定 Enter 鍵
+    document.getElementById('wikiInput').addEventListener("keypress", function(event) {
+        if (event.key === "Enter") searchWiki();
+    });
 
-    // 6. 處理新增資料表單 (發送到 GAS)
-    const form = document.getElementById('addDataForm');
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
+    // --- 功能 4: 新增資料 (AJAX) ---
+    function submitData(e) {
+        e.preventDefault(); // 防止表單直接跳轉
         
-        if (GAS_EXEC_URL.includes("你的AppsScriptID")) {
-            alert("錯誤：請先在程式碼中設定正確的 GAS 部署網址！");
-            return;
-        }
-
         const btn = document.getElementById('submitBtn');
         const originalText = btn.innerText;
         btn.disabled = true;
-        btn.innerText = "傳送中...";
+        btn.innerText = "正在寫入...";
 
-        // 使用 fetch 發送資料
+        const form = document.getElementById('addForm');
         const formData = new FormData(form);
-        
-        fetch(GAS_EXEC_URL, {
+
+        fetch(SCRIPT_URL, {
             method: 'POST',
-            body: formData,
-            mode: 'no-cors' // 重要：Google Script 跨域需要設為 no-cors (雖然無法讀取回傳值，但能成功發送)
+            body: formData
         })
-        .then(() => {
-            alert("資料已送出！請等待約 1-5 分鐘後重新整理頁面即可看到更新 (Google Sheet 快取延遲)。");
-            form.reset();
-            // 關閉 Modal
-            const modalEl = document.getElementById('addDataModal');
-            const modal = bootstrap.Modal.getInstance(modalEl);
-            modal.hide();
+        .then(response => response.json())
+        .then(data => {
+            if(data.result === 'success') {
+                alert('🎉 新增成功！\n資料已寫入 Google Sheet。\n\n(注意：CSV 讀取有約 1-3 分鐘快取延遲，請稍等一下再重新整理網頁)');
+                
+                // 關閉 Modal 並重置表單
+                form.reset();
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addModal'));
+                modal.hide();
+
+            } else {
+                alert('❌ 寫入失敗：\n' + data.error);
+            }
         })
         .catch(err => {
-            console.error('Error:', err);
-            alert("發送失敗，請檢查網路或腳本設定。");
+            alert('❌ 連線錯誤，請檢查 Script URL 是否正確。\n' + err);
         })
         .finally(() => {
             btn.disabled = false;
             btn.innerText = originalText;
         });
-    });
-    
-    // Enter 鍵觸發 wiki 搜尋
-    document.getElementById('wikiInput').addEventListener("keypress", function(event) {
-        if (event.key === "Enter") searchWiki();
-    });
+    }
 </script>
 
 </body>
