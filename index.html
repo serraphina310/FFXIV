@@ -119,7 +119,7 @@
         });
     }
 
-    // 4. 資料庫內篩選功能 (已更新為多關鍵字邏輯)
+   // 4. 資料庫內篩選功能 (已更新為：名稱精確搜尋 + 其他欄位模糊搜尋)
     function filterTable() {
         const input = document.getElementById('dbInput');
         // 取得輸入值，轉大寫，並去除前後空白
@@ -127,7 +127,7 @@
         const table = document.getElementById('dataTable');
         const tr = table.getElementsByTagName('tr');
 
-        // 如果輸入框是空的，顯示所有資料並結束函式
+        // 如果輸入框是空的，顯示所有資料並結束
         if (filterValue === "") {
             for (let i = 1; i < tr.length; i++) {
                 tr[i].style.display = "";
@@ -135,24 +135,35 @@
             return;
         }
 
-        // 將輸入字串切割成陣列
-        // 支援的分隔符號：空白(\s), 英文逗號(,), 中文逗號(，), 頓號(、), 換行(\n)
+        // 切割關鍵字 (支援空白、逗號、換行)
         const keywords = filterValue.split(/[\s,，、\n]+/).filter(k => k.length > 0);
 
         // 從索引 1 開始迴圈 (跳過標題列)
         for (let i = 1; i < tr.length; i++) {
-            const rowText = (tr[i].textContent || tr[i].innerText).toUpperCase();
+            const tds = tr[i].getElementsByTagName('td');
+            
+            // 取得各欄位資料 (注意：根據您的表格順序，名稱在索引 1, 地圖在 2, 地點在 3, 備註在 4)
+            // 這裡抓取文字內容並轉大寫以便比對
+            const nameText = (tds[1].textContent || tds[1].innerText).trim().toUpperCase();
+            const mapText = (tds[2].textContent || tds[2].innerText).toUpperCase();
+            const locText = (tds[3].textContent || tds[3].innerText).toUpperCase();
+            const noteText = (tds[4].textContent || tds[4].innerText).toUpperCase();
+
             let isMatch = false;
 
-            // 檢查這一行是否包含「任一」關鍵字
+            // 檢查這一行是否符合「任一」關鍵字
             for (let j = 0; j < keywords.length; j++) {
-                if (rowText.indexOf(keywords[j]) > -1) {
+                const k = keywords[j];
+
+                // 核心邏輯修改：
+                // 1. 如果關鍵字跟「原料名稱」一模一樣 (精確搜尋) -> 符合
+                // 2. 或者，如果關鍵字出現在「地圖」、「地點」或「備註」中 (模糊搜尋) -> 符合
+                if (nameText === k || mapText.indexOf(k) > -1 || locText.indexOf(k) > -1 || noteText.indexOf(k) > -1) {
                     isMatch = true;
-                    break; // 只要有一個關鍵字符合，就標記為符合並跳出關鍵字迴圈
+                    break; // 找到符合的關鍵字就停止檢查該行
                 }
             }
 
-            // 根據是否符合來顯示或隱藏
             tr[i].style.display = isMatch ? "" : "none";
         }
     }
@@ -177,3 +188,4 @@
 
 </body>
 </html>
+
