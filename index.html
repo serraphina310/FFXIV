@@ -89,7 +89,7 @@
                 <i class="bi bi-plus-all"></i> 將搜尋結果全加入清單
             </button>
         </label>
-        <textarea id="dbInput" class="form-control" rows="1" 
+        <textarea id="dbInput" class="form-control" rows="5" 
             placeholder="例如：鐵礦 靈銀礦 (空白分隔)... 未輸入時不顯示內容" 
             onkeyup="performSearch()"></textarea>
     </div>
@@ -175,7 +175,7 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         loadCsvData();
-        // 嘗試從 localStorage 讀取上次的清單 (選擇性功能)
+        // 嘗試從 localStorage 讀取上次的清單
         const saved = localStorage.getItem('ff14GatherList');
         if(saved) {
             gatheringList = JSON.parse(saved);
@@ -193,7 +193,6 @@
                 allData = results.data.filter(r => r['原料名稱'] && r['原料名稱'].trim() !== '').reverse();
                 
                 document.getElementById('loadingMsg').style.display = 'none';
-                // 預設顯示「請輸入關鍵字」
                 document.getElementById('emptyMsg').classList.remove('d-none');
             },
             error: function(err) {
@@ -202,7 +201,7 @@
         });
     }
 
-    // 2. 搜尋邏輯 (核心修改：未搜尋不顯示，支援多關鍵字)
+    // 2. 搜尋邏輯
     function performSearch() {
         const input = document.getElementById('dbInput').value.trim().toUpperCase();
         const table = document.getElementById('resultTable');
@@ -268,10 +267,9 @@
 
     // ================= 採集清單功能區 =================
 
-    // 加入單項到清單 (從 currentResults 抓取資料)
+    // 加入單項到清單
     function addToList(resultIndex) {
         const item = currentResults[resultIndex];
-        // 建立清單物件
         const listItem = {
             name: item['原料名稱'],
             map: item['地圖編號'] + (item['採集地點'] ? ` (${item['採集地點']})` : ''),
@@ -282,7 +280,7 @@
         saveAndRenderList();
     }
 
-    // 加入搜尋結果的「全部」項目
+    // 加入全部
     function addAllVisibleItems() {
         if(confirm(`確定要將目前的 ${currentResults.length} 筆資料全部加入清單嗎？`)) {
             currentResults.forEach(item => {
@@ -294,7 +292,7 @@
                 });
             });
             saveAndRenderList();
-            // 清空搜尋框與結果 (可選)
+            // 清空搜尋框與結果
             document.getElementById('dbInput').value = '';
             performSearch();
         }
@@ -312,7 +310,6 @@
 
         gatheringList.forEach((item, index) => {
             const tr = document.createElement('tr');
-            // 如果已完成，加上灰色樣式
             if (item.done) tr.classList.add('completed-row');
 
             tr.innerHTML = `
@@ -338,25 +335,21 @@
         });
     }
 
-    // 切換完成狀態 (核對框)
     function toggleDone(index) {
         gatheringList[index].done = !gatheringList[index].done;
         saveAndRenderList();
     }
 
-    // 更新數量
     function updateQty(index, val) {
         gatheringList[index].qty = val;
-        saveAndRenderList(); // 這裡儲存是為了防止重整後數量消失
+        saveAndRenderList();
     }
 
-    // 刪除單項
     function removeItem(index) {
         gatheringList.splice(index, 1);
         saveAndRenderList();
     }
 
-    // 清空全部
     function clearList() {
         if(confirm('確定要清空採集清單嗎？')) {
             gatheringList = [];
@@ -364,7 +357,6 @@
         }
     }
 
-    // 儲存到 LocalStorage 並重新渲染 (保持頁面重整後資料還在)
     function saveAndRenderList() {
         localStorage.setItem('ff14GatherList', JSON.stringify(gatheringList));
         renderList();
@@ -377,7 +369,7 @@
     }
     document.getElementById('wikiInput').addEventListener("keypress", (e) => { if(e.key==="Enter") searchWiki(); });
 
-    // 新增資料 (保留原樣)
+    // 新增資料
     function submitData(e) {
         e.preventDefault();
         const btn = document.getElementById('submitBtn');
@@ -391,7 +383,6 @@
                 alert('新增成功！請稍後重整網頁。');
                 document.getElementById('addForm').reset();
                 bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
-                // 為了即時性，我們可以手動把資料加到 allData，這樣不用重整也能搜到 (選擇性)
             } else alert('失敗：' + d.error);
         })
         .catch(err => alert('錯誤：' + err))
