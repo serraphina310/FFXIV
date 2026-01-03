@@ -10,33 +10,27 @@
         body { background-color: #f8f9fa; padding-top: 20px; font-family: "Microsoft JhengHei", sans-serif; }
         
         /* 區塊樣式 */
-        .section-box { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .section-box { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 30px; }
         .wiki-search-box { background: #e9ecef; border-left: 5px solid #0d6efd; }
         
-        /* 圖片樣式 */
+        /* 圖片與載入 */
         .item-img { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; border: 1px solid #ddd; }
-        
         .loading { text-align: center; color: #666; margin-top: 20px; }
         h1 { color: #333; font-weight: 800; letter-spacing: 1px; }
-
-        /* 搜尋框美化 */
-        #dbInput { border: 2px solid #0d6efd; background-color: #fff; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1); }
         
-        /* 懸浮按鈕樣式 */
-        .btn-float { 
-            position: fixed; bottom: 30px; right: 30px; 
-            border-radius: 50%; width: 60px; height: 60px; 
-            font-size: 24px; box-shadow: 0 4px 15px rgba(13, 110, 253, 0.4); 
-            z-index: 1000; transition: transform 0.2s;
+        /* 搜尋框優化 */
+        #dbInput { border: 2px solid #0d6efd; background-color: #fff; resize: vertical; }
+        
+        /* 已完成項目樣式 (清單) */
+        .row-checked { 
+            background-color: #e2e3e5 !important; 
+            color: #adb5bd; 
+            text-decoration: line-through; 
         }
-        .btn-float:hover { transform: scale(1.1); }
+        .row-checked img { opacity: 0.5; grayscale: 100%; }
         
-        /* 採集清單樣式 */
-        .todo-done { background-color: #f0f0f0; color: #999; }
-        .todo-done td { text-decoration: line-through; }
-        .todo-done input { text-decoration: none; color: #999; }
-
-        .modal-header { background-color: #0d6efd; color: white; }
+        /* 表格微調 */
+        .table td { vertical-align: middle; }
     </style>
 </head>
 <body>
@@ -44,7 +38,7 @@
 <div class="container pb-5">
     <div class="text-center mb-4">
         <h1><i class="bi bi-database-fill-gear"></i> FF14 採集原料資料庫</h1>
-        <p class="text-muted">即時查詢與回報採集地點</p>
+        <p class="text-muted">搜尋、規劃與管理您的採集路線</p>
     </div>
 
     <div class="section-box wiki-search-box">
@@ -53,135 +47,80 @@
             <input type="text" id="wikiInput" class="form-control" placeholder="輸入關鍵字 (例如: 靈銀礦)...">
             <button class="btn btn-secondary" onclick="searchWiki()">搜尋 Wiki</button>
         </div>
+        <small class="text-muted">將開啟新分頁透過 Google 搜尋 ff14.huijiwiki.com</small>
     </div>
 
-    <div class="section-box">
-        <label for="dbInput" class="form-label fw-bold text-primary">
-            <i class="bi bi-funnel-fill"></i> 搜尋資料庫 (支援多關鍵字)：
+    <hr>
+
+    <div class="mb-4">
+        <label for="dbInput" class="form-label fw-bold text-primary h5">
+            <i class="bi bi-funnel-fill"></i> 搜尋資料庫 (支援多行/多關鍵字)：
         </label>
-        <div class="alert alert-info py-2 mb-2">
-            <small><i class="bi bi-info-circle"></i> 提示：原料名稱為「完全符合」，地圖與備註為「部分符合」。多個關鍵字請用空白或換行分隔。</small>
-        </div>
-        <textarea id="dbInput" class="form-control mb-3" rows="5" 
-            placeholder="在此輸入關鍵字，例如：&#10;鐵礦&#10;靈銀礦&#10;(支援一次搜尋多項物品)" 
-            onkeyup="handleSearch()"></textarea>
-        
-        <div class="d-flex gap-2">
-            <button class="btn btn-outline-primary" onclick="handleSearch()">
-                <i class="bi bi-arrow-repeat"></i> 重新搜尋
-            </button>
-            <button id="addAllBtn" class="btn btn-success d-none" onclick="addAllVisibleToCart()">
-                <i class="bi bi-cart-plus-fill"></i> 將搜尋結果全部加入清單
+        <textarea id="dbInput" class="form-control" rows="5" 
+            placeholder="在此輸入關鍵字，例如：&#10;鐵礦&#10;靈銀礦&#10;Lakeland&#10;(支援換行或空白分隔)" 
+            onkeyup="filterTable()"></textarea>
+        <div class="mt-2 d-flex justify-content-between align-items-center">
+            <small class="text-muted">提示：原料名稱需「完全符合」才會顯示；地圖或備註可「部分符合」。</small>
+            <button class="btn btn-outline-primary btn-sm" id="addAllBtn" onclick="addAllSearchResults()" style="display: none;">
+                <i class="bi bi-check-all"></i> 將搜尋結果全部加入清單
             </button>
         </div>
     </div>
 
-    <div class="section-box border border-warning" id="shoppingListSection">
+    <div class="table-responsive bg-white shadow-sm p-3 rounded mb-5" id="searchResultSection" style="display: none;">
+        <h5 class="text-primary mb-3"><i class="bi bi-list-ul"></i> 搜尋結果</h5>
+        
+        <div id="loadingMsg" class="loading">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2">正在從 Google Sheets 讀取資料...</p>
+        </div>
+
+        <table class="table table-hover align-middle mb-0" id="dataTable">
+            <thead class="table-primary">
+                <tr>
+                    <th width="10%">加入</th>
+                    <th width="10%">圖片</th>
+                    <th width="20%">原料名稱</th>
+                    <th width="15%">地圖編號</th>
+                    <th width="20%">採集地點</th>
+                    <th width="25%">備註</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                </tbody>
+        </table>
+        <div id="noResultMsg" class="text-center text-muted p-3" style="display: none;">沒有找到符合的資料</div>
+    </div>
+
+    <div class="section-box border border-success border-2">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="text-warning-emphasis mb-0"><i class="bi bi-clipboard-check-fill"></i> 今日採集清單</h5>
-            <button class="btn btn-sm btn-outline-danger" onclick="clearCart()">
-                <i class="bi bi-trash"></i> 清空清單
+            <h4 class="text-success m-0"><i class="bi bi-cart-check-fill"></i> 今日採集清單</h4>
+            <button class="btn btn-outline-danger btn-sm" onclick="clearCart()">
+                <i class="bi bi-trash"></i> 全部清空
             </button>
         </div>
         
         <div class="table-responsive">
-            <table class="table table-bordered align-middle mb-0">
-                <thead class="table-light">
+            <table class="table table-bordered align-middle" id="cartTable">
+                <thead class="table-success">
                     <tr>
-                        <th width="5%" class="text-center"><i class="bi bi-check2-square"></i></th>
-                        <th width="30%">原料名稱</th>
-                        <th width="35%">地點資訊</th>
-                        <th width="20%">數量</th>
+                        <th width="5%" class="text-center">完成</th>
+                        <th width="25%">原料名稱</th>
+                        <th width="15%">地圖編號</th>
+                        <th width="20%">地點/備註</th>
+                        <th width="15%">數量</th>
                         <th width="10%">操作</th>
                     </tr>
                 </thead>
                 <tbody id="cartBody">
-                    <tr><td colspan="5" class="text-center text-muted py-3">清單目前是空的，請從下方搜尋並加入原料。</td></tr>
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">清單目前是空的，請從上方搜尋並加入項目。</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <div class="section-box p-0 overflow-hidden">
-        <div id="loadingMsg" class="loading p-4">
-            <div class="spinner-border text-primary" role="status"></div>
-            <p class="mt-2">正在從 Google Sheets 讀取資料...</p>
-        </div>
-
-        <div id="resultContainer" class="d-none">
-            <div class="bg-primary text-white p-2 px-3 fw-bold">
-                <i class="bi bi-list-ul"></i> 搜尋結果
-            </div>
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th width="10%">圖片</th>
-                            <th width="20%">原料名稱</th>
-                            <th width="20%">地圖</th>
-                            <th width="20%">座標/備註</th>
-                            <th width="10%">功能</th>
-                        </tr>
-                    </thead>
-                    <tbody id="resultBody">
-                        </tbody>
-                </table>
-            </div>
-            <div id="noResultMsg" class="text-center p-4 text-muted d-none">
-                沒有找到符合的資料。<br>如果是原料名稱，請確認輸入完整全名 (例如：輸入「鐵礦」而非「鐵」)。
-            </div>
-            <div id="startMsg" class="text-center p-4 text-muted">
-                請在上方輸入關鍵字以開始搜尋。
-            </div>
-        </div>
-    </div>
-</div>
-
-<button class="btn btn-primary btn-float" data-bs-toggle="modal" data-bs-target="#addModal" title="新增資料">
-    <i class="bi bi-plus-lg"></i>
-</button>
-
-<div class="modal fade" id="addModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-pen-fill"></i> 新增採集資訊</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="addForm" onsubmit="submitData(event)">
-                    <div class="mb-3">
-                        <label class="form-label">原料名稱 <span class="text-danger">*</span></label>
-                        <input type="text" name="itemName" class="form-control" required placeholder="例如：靈銀礦">
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">地圖編號</label>
-                        <input type="text" name="mapId" class="form-control" placeholder="例如：Lakeland">
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">採集地點 (座標)</label>
-                        <input type="text" name="loc" class="form-control" placeholder="例如：X:10.5 Y:20.1">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">圖片連結 (選填)</label>
-                        <input type="text" name="imgLink" class="form-control" placeholder="請貼上圖片網址 (https://...)">
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">備註</label>
-                        <textarea name="note" class="form-control" rows="2"></textarea>
-                    </div>
-
-                    <div class="d-grid">
-                        <button type="submit" id="submitBtn" class="btn btn-primary">送出資料</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
@@ -189,28 +128,34 @@
 
 <script>
     // ================= 設定區 =================
+    // 你的 Google Sheet CSV 連結
     const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSKLU1K1ol-mP7n2gz7clz522QmjoTAMRfz1lxSKjBwTPMvC5eMimPycZ-RsknpuYkUPaWmHWqj-QNe/pub?output=csv'; 
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdE3CRPxQkwhd9-RW644BY6oCZUPyrenHAV0UlqfBapt543okqNREiCMmTKW31A9h-Sg/exec';
     // ==========================================
 
-    let allData = [];         
-    let currentResults = [];  
-    let shoppingList = [];    
+    let dbData = [];       // 存放完整的資料庫資料
+    let searchResults = []; // 存放目前的搜尋結果
+    let cartList = [];     // 存放今日採集清單
 
+    // 頁面載入完成後執行
     document.addEventListener('DOMContentLoaded', () => {
         loadData();
-        loadCartFromStorage(); 
+        // 嘗試從 localStorage 讀取舊的清單 (選擇性功能，若不需要可移除)
+        const savedCart = localStorage.getItem('ff14_gathering_cart');
+        if (savedCart) {
+            cartList = JSON.parse(savedCart);
+            renderCart();
+        }
     });
 
-    // --- 1. 資料讀取 ---
+    // --- 功能 1: 讀取資料 ---
     function loadData() {
         Papa.parse(SHEET_CSV_URL, {
             download: true,
             header: true,
             complete: function(results) {
-                allData = results.data.filter(row => row['原料名稱'] && row['原料名稱'].trim() !== '').reverse();
+                // 過濾空行並儲存到全域變數
+                dbData = results.data.filter(row => row['原料名稱'] && row['原料名稱'].trim() !== '');
                 document.getElementById('loadingMsg').style.display = 'none';
-                document.getElementById('resultContainer').classList.remove('d-none');
             },
             error: function(err) {
                 console.error(err);
@@ -220,214 +165,192 @@
         });
     }
 
-    // --- 2. 搜尋邏輯 (核心修改處) ---
-    function handleSearch() {
-        const input = document.getElementById('dbInput').value.trim().toUpperCase();
-        const resultBody = document.getElementById('resultBody');
-        const startMsg = document.getElementById('startMsg');
-        const noResultMsg = document.getElementById('noResultMsg');
+    // --- 功能 2: 搜尋與過濾 ---
+    function filterTable() {
+        const input = document.getElementById('dbInput').value.trim();
+        const resultSection = document.getElementById('searchResultSection');
         const addAllBtn = document.getElementById('addAllBtn');
-
-        resultBody.innerHTML = '';
-        currentResults = [];
-
+        const tbody = document.getElementById('tableBody');
+        const noMsg = document.getElementById('noResultMsg');
+        
+        // 1. 若無輸入，隱藏整個結果區
         if (!input) {
-            startMsg.classList.remove('d-none');
-            noResultMsg.classList.add('d-none');
-            addAllBtn.classList.add('d-none');
+            resultSection.style.display = 'none';
+            addAllBtn.style.display = 'none';
+            searchResults = [];
             return;
         }
 
-        startMsg.classList.add('d-none');
+        // 2. 顯示結果區
+        resultSection.style.display = 'block';
+        tbody.innerHTML = '';
+        
+        // 3. 解析關鍵字 (支援空白與換行分隔)
+        const keywords = input.split(/[\s\n]+/).filter(k => k);
 
-        // 分割關鍵字
-        const keywords = input.split(/[\s,]+/).filter(k => k);
+        // 4. 執行過濾邏輯
+        searchResults = dbData.filter(row => {
+            const name = (row['原料名稱'] || "").trim();
+            const mapId = (row['地圖編號'] || "").toUpperCase();
+            const note = (row['備註'] || "").toUpperCase();
 
-        // 篩選資料
-        currentResults = allData.filter(row => {
-            // 修正邏輯：
-            // 1. 使用 some (OR 邏輯)，只要符合其中一個關鍵字就顯示，解決多關鍵字沒資料問題
-            // 2. 原料名稱使用 === (完全符合)，解決「鐵礦」顯示「玄鐵礦」問題
-            // 3. 地圖/備註使用 includes (部分符合)，保持搜尋地圖的彈性
-            
-            const name = row['原料名稱'] ? row['原料名稱'].toUpperCase().trim() : '';
-            const mapId = row['地圖編號'] ? row['地圖編號'].toUpperCase() : '';
-            const loc = row['採集地點'] ? row['採集地點'].toUpperCase() : '';
-            const note = row['備註'] ? row['備註'].toUpperCase() : '';
-
+            // 規則：只要有「任何一個」關鍵字符合條件，該行就保留
             return keywords.some(k => {
-                // 原料名稱：必須完全相等
-                const isNameMatch = (name === k);
-                // 其他欄位：包含即可
-                const isMapMatch = mapId.includes(k);
-                const isLocMatch = loc.includes(k);
-                const isNoteMatch = note.includes(k);
-
-                return isNameMatch || isMapMatch || isLocMatch || isNoteMatch;
+                const upperK = k.toUpperCase();
+                // 條件 A: 原料名稱必須「完全符合」關鍵字 (大小寫不敏感)
+                // 條件 B: 地圖編號或備註 只要「包含」關鍵字即可
+                return name.toUpperCase() === upperK || 
+                       mapId.includes(upperK) || 
+                       note.includes(upperK);
             });
         });
 
-        if (currentResults.length === 0) {
-            noResultMsg.classList.remove('d-none');
-            addAllBtn.classList.add('d-none');
+        // 5. 渲染搜尋結果
+        if (searchResults.length === 0) {
+            noMsg.style.display = 'block';
+            addAllBtn.style.display = 'none';
         } else {
-            noResultMsg.classList.add('d-none');
-            addAllBtn.classList.remove('d-none');
-            renderResults(currentResults);
+            noMsg.style.display = 'none';
+            addAllBtn.style.display = 'inline-block'; // 顯示「全部加入」按鈕
+            
+            searchResults.forEach((row, index) => {
+                let imgDisplay = '<span class="text-muted">-</span>';
+                let link = row['圖片連結'] ? row['圖片連結'].replace(/'/g, "").trim() : "";
+                if(link.startsWith('http')) {
+                    imgDisplay = `<img src="${link}" class="item-img" alt="圖">`;
+                }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <button class="btn btn-sm btn-success rounded-circle" onclick="addToCartByRowIndex(${index})" title="加入清單">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    </td>
+                    <td>${imgDisplay}</td>
+                    <td class="fw-bold text-primary">${row['原料名稱']}</td>
+                    <td>${row['地圖編號'] || ''}</td>
+                    <td>${row['採集地點'] || ''}</td>
+                    <td><small class="text-muted">${row['備註'] || ''}</small></td>
+                `;
+                tbody.appendChild(tr);
+            });
         }
     }
 
-    // 渲染搜尋結果
-    function renderResults(data) {
-        const tbody = document.getElementById('resultBody');
-        
-        data.forEach((row, index) => {
-            let imgDisplay = '<span class="text-muted">-</span>';
-            let link = row['圖片連結'] ? row['圖片連結'].replace(/'/g, "").trim() : "";
-            if(link.startsWith('http')) {
-                imgDisplay = `<img src="${link}" class="item-img" alt="圖">`;
-            }
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${imgDisplay}</td>
-                <td class="fw-bold text-primary">${row['原料名稱']}</td>
-                <td>${row['地圖編號'] || ''}</td>
-                <td>
-                    <div>${row['採集地點'] || ''}</div>
-                    <small class="text-muted">${row['備註'] || ''}</small>
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-outline-success" onclick="addToCartByRow(${index})">
-                        <i class="bi bi-plus-lg"></i> 加入
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    // --- 3. 採集清單邏輯 ---
-
-    function addToCartByRow(index) {
-        const item = currentResults[index];
+    // --- 功能 3: 購物車/清單管理 ---
+    
+    // 將當前搜尋結果的第 index 筆加入清單
+    function addToCartByRowIndex(index) {
+        const item = searchResults[index];
         addToCart(item);
     }
 
-    function addToCart(item) {
-        const exists = shoppingList.find(i => i.name === item['原料名稱'] && i.map === item['地圖編號']);
+    // 將搜尋結果「全部」加入
+    function addAllSearchResults() {
+        if(searchResults.length === 0) return;
+        searchResults.forEach(item => addToCart(item, false)); // false 代表先不渲染
+        renderCart(); // 最後一次渲染
+    }
+
+    // 核心加入邏輯
+    function addToCart(item, autoRender = true) {
+        // 檢查是否已在清單中 (避免重複？或者是使用者想重複加？這裡假設若已存在則不重複加，或者您可以改為數量+1)
+        // 這裡實作：若名稱相同，則不重複新增，提示已存在 (或直接忽略)
+        const exists = cartList.find(c => c['原料名稱'] === item['原料名稱']);
         if (!exists) {
-            shoppingList.push({
-                name: item['原料名稱'],
-                map: item['地圖編號'],
-                loc: item['採集地點'],
-                note: item['備註'],
-                qty: 1,
-                checked: false
+            cartList.push({
+                ...item,
+                cartId: Date.now() + Math.random(), // 唯一 ID
+                count: 1,      // 預設數量
+                checked: false // 預設未完成
             });
-            renderCart();
         }
+        if (autoRender) renderCart();
     }
 
-    function addAllVisibleToCart() {
-        if(currentResults.length > 50) {
-            if(!confirm(`確定要一次加入 ${currentResults.length} 筆資料嗎？`)) return;
-        }
-        
-        let count = 0;
-        currentResults.forEach(item => {
-            const exists = shoppingList.find(i => i.name === item['原料名稱'] && i.map === item['地圖編號']);
-            if(!exists) {
-                shoppingList.push({
-                    name: item['原料名稱'],
-                    map: item['地圖編號'],
-                    loc: item['採集地點'],
-                    note: item['備註'],
-                    qty: 1,
-                    checked: false
-                });
-                count++;
-            }
-        });
-        renderCart();
-        alert(`已加入 ${count} 筆新資料到清單。`);
-    }
-
+    // 渲染清單
     function renderCart() {
         const tbody = document.getElementById('cartBody');
         tbody.innerHTML = '';
 
-        if (shoppingList.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">清單目前是空的，請從下方搜尋並加入原料。</td></tr>';
-            saveCartToStorage();
+        if (cartList.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">清單目前是空的，請從上方搜尋並加入項目。</td></tr>';
+            saveCart();
             return;
         }
 
-        shoppingList.forEach((item, index) => {
+        // 排序：依照地圖編號 (Map ID) 升冪
+        cartList.sort((a, b) => {
+            const mapA = (a['地圖編號'] || "").toString();
+            const mapB = (b['地圖編號'] || "").toString();
+            return mapA.localeCompare(mapB);
+        });
+
+        cartList.forEach((item, index) => {
             const tr = document.createElement('tr');
-            if (item.checked) tr.classList.add('todo-done');
+            // 根據是否 checked 加上樣式
+            if (item.checked) tr.classList.add('row-checked');
 
             tr.innerHTML = `
                 <td class="text-center">
-                    <input class="form-check-input" type="checkbox" 
+                    <input type="checkbox" class="form-check-input" style="transform: scale(1.3);" 
                         ${item.checked ? 'checked' : ''} 
-                        onchange="toggleCartItem(${index})">
+                        onchange="toggleCheck(${index})">
                 </td>
-                <td class="fw-bold">${item.name}</td>
+                <td class="fw-bold">${item['原料名稱']}</td>
+                <td><span class="badge bg-secondary text-wrap">${item['地圖編號'] || '未知'}</span></td>
                 <td>
-                    <span class="badge bg-secondary">${item.map || '未知'}</span> 
-                    ${item.loc || ''}
-                </td>
-                <td>
-                    <input type="number" class="form-control form-control-sm" style="width: 80px" 
-                        value="${item.qty}" min="1" 
-                        onchange="updateCartQty(${index}, this.value)">
+                    <div>${item['採集地點'] || '-'}</div>
+                    <small class="text-muted">${item['備註'] || ''}</small>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-danger" onclick="removeCartItem(${index})">
-                        <i class="bi bi-x-lg"></i>
+                    <input type="number" class="form-control form-control-sm" value="${item.count}" min="1" 
+                        onchange="updateCount(${index}, this.value)">
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteFromCart(${index})">
+                        <i class="bi bi-trash"></i>
                     </button>
                 </td>
             `;
             tbody.appendChild(tr);
         });
-        saveCartToStorage();
+        saveCart();
     }
 
-    function toggleCartItem(index) {
-        shoppingList[index].checked = !shoppingList[index].checked;
+    // 切換完成狀態
+    function toggleCheck(index) {
+        cartList[index].checked = !cartList[index].checked;
         renderCart();
     }
 
-    function updateCartQty(index, val) {
-        shoppingList[index].qty = val;
-        saveCartToStorage();
+    // 更新數量
+    function updateCount(index, val) {
+        cartList[index].count = val;
+        saveCart(); // 只儲存不需重新渲染
     }
 
-    function removeCartItem(index) {
-        shoppingList.splice(index, 1);
+    // 刪除單項
+    function deleteFromCart(index) {
+        cartList.splice(index, 1);
         renderCart();
     }
 
+    // 清空清單
     function clearCart() {
-        if(confirm("確定要清空所有清單嗎？")) {
-            shoppingList = [];
+        if(confirm('確定要清空所有清單嗎？')) {
+            cartList = [];
             renderCart();
         }
     }
 
-    function saveCartToStorage() {
-        localStorage.setItem('ff14_gathering_list', JSON.stringify(shoppingList));
-    }
-    function loadCartFromStorage() {
-        const saved = localStorage.getItem('ff14_gathering_list');
-        if (saved) {
-            shoppingList = JSON.parse(saved);
-            renderCart();
-        }
+    // 儲存到 LocalStorage (防止重新整理後消失)
+    function saveCart() {
+        localStorage.setItem('ff14_gathering_cart', JSON.stringify(cartList));
     }
 
-    // --- 4. 其他功能 ---
+    // --- 功能 4: Wiki 搜尋 ---
     function searchWiki() {
         const query = document.getElementById('wikiInput').value;
         if (query) {
@@ -435,43 +358,11 @@
             window.open(url, '_blank');
         }
     }
+    // 綁定 Enter 鍵
     document.getElementById('wikiInput').addEventListener("keypress", function(event) {
         if (event.key === "Enter") searchWiki();
     });
 
-    function submitData(e) {
-        e.preventDefault();
-        const btn = document.getElementById('submitBtn');
-        const originalText = btn.innerText;
-        btn.disabled = true;
-        btn.innerText = "正在寫入...";
-
-        const form = document.getElementById('addForm');
-        const formData = new FormData(form);
-
-        fetch(SCRIPT_URL, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if(data.result === 'success') {
-                alert('🎉 新增成功！\n資料已寫入 Google Sheet。');
-                form.reset();
-                const modal = bootstrap.Modal.getInstance(document.getElementById('addModal'));
-                modal.hide();
-            } else {
-                alert('❌ 寫入失敗：\n' + data.error);
-            }
-        })
-        .catch(err => {
-            alert('❌ 連線錯誤：\n' + err);
-        })
-        .finally(() => {
-            btn.disabled = false;
-            btn.innerText = originalText;
-        });
-    }
 </script>
 
 </body>
