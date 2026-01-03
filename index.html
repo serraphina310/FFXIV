@@ -5,12 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FF14 採集原料資料庫</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <style>
         body { background-color: #f4f4f9; padding-top: 20px; }
         .wiki-search-box { background: #e2e3e5; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
         .item-img { max-width: 50px; max-height: 50px; border-radius: 4px; }
         .loading { text-align: center; color: #666; font-style: italic; }
         h1 { color: #333; font-weight: bold; }
+        /* 讓搜尋框更明顯一點 */
+        #dbInput { border: 2px solid #0d6efd; background-color: #fff; }
     </style>
 </head>
 <body>
@@ -33,8 +36,13 @@
     <hr>
 
     <div class="mb-3">
-        <label for="dbInput" class="form-label fw-bold">篩選本資料庫內容：</label>
-        <input type="text" id="dbInput" class="form-control" placeholder="輸入原料名稱、地圖或備註關鍵字..." onkeyup="filterTable()">
+        <label for="dbInput" class="form-label fw-bold text-primary">
+            <i class="bi bi-funnel-fill"></i> 批量搜尋原料 (只顯示符合的項目)：
+        </label>
+        <textarea id="dbInput" class="form-control" rows="2" 
+            placeholder="在此輸入多個關鍵字，請用「空白」或「逗號」分隔。&#10;例如：鐵礦 靈銀礦 雲母" 
+            onkeyup="filterTable()"></textarea>
+        <small class="text-muted">支援同時搜尋多個物品，只要符合任一關鍵字即會顯示。</small>
     </div>
 
     <div class="table-responsive bg-white shadow-sm p-3 rounded">
@@ -73,7 +81,7 @@
     function loadData() {
         Papa.parse(SHEET_CSV_URL, {
             download: true,
-            header: true, // 假設第一行是標題
+            header: true,
             complete: function(results) {
                 renderTable(results.data);
                 document.getElementById('loadingMsg').style.display = 'none';
@@ -89,15 +97,13 @@
     // 3. 渲染表格
     function renderTable(data) {
         const tbody = document.getElementById('tableBody');
-        tbody.innerHTML = ''; // 清空舊資料
+        tbody.innerHTML = ''; 
 
         data.forEach(row => {
-            // 排除空行
             if(!row['原料名稱']) return; 
 
             const tr = document.createElement('tr');
             
-            // 處理圖片顯示，如果沒有連結則顯示預設文字
             const imgHtml = row['圖片連結'] 
                 ? `<img src="${row['圖片連結']}" class="item-img" alt="${row['原料名稱']}">` 
                 : '<span class="text-muted">-</span>';
@@ -113,21 +119,41 @@
         });
     }
 
-    // 4. 資料庫內篩選功能
+    // 4. 資料庫內篩選功能 (已更新為多關鍵字邏輯)
     function filterTable() {
         const input = document.getElementById('dbInput');
-        const filter = input.value.toUpperCase();
+        // 取得輸入值，轉大寫，並去除前後空白
+        const filterValue = input.value.toUpperCase().trim();
         const table = document.getElementById('dataTable');
         const tr = table.getElementsByTagName('tr');
 
+        // 如果輸入框是空的，顯示所有資料並結束函式
+        if (filterValue === "") {
+            for (let i = 1; i < tr.length; i++) {
+                tr[i].style.display = "";
+            }
+            return;
+        }
+
+        // 將輸入字串切割成陣列
+        // 支援的分隔符號：空白(\s), 英文逗號(,), 中文逗號(，), 頓號(、), 換行(\n)
+        const keywords = filterValue.split(/[\s,，、\n]+/).filter(k => k.length > 0);
+
         // 從索引 1 開始迴圈 (跳過標題列)
         for (let i = 1; i < tr.length; i++) {
-            const rowText = tr[i].textContent || tr[i].innerText;
-            if (rowText.toUpperCase().indexOf(filter) > -1) {
-                tr[i].style.display = "";
-            } else {
-                tr[i].style.display = "none";
+            const rowText = (tr[i].textContent || tr[i].innerText).toUpperCase();
+            let isMatch = false;
+
+            // 檢查這一行是否包含「任一」關鍵字
+            for (let j = 0; j < keywords.length; j++) {
+                if (rowText.indexOf(keywords[j]) > -1) {
+                    isMatch = true;
+                    break; // 只要有一個關鍵字符合，就標記為符合並跳出關鍵字迴圈
+                }
             }
+
+            // 根據是否符合來顯示或隱藏
+            tr[i].style.display = isMatch ? "" : "none";
         }
     }
 
@@ -135,7 +161,6 @@
     function searchWiki() {
         const query = document.getElementById('wikiInput').value;
         if (query) {
-            // 使用 Google 搜尋特定網站語法 site:ff14.huijiwiki.com
             const url = `https://www.google.com/search?q=site%3Aff14.huijiwiki.com+${encodeURIComponent(query)}`;
             window.open(url, '_blank');
         } else {
@@ -143,7 +168,6 @@
         }
     }
     
-    // 讓 Wiki 搜尋框支援按 Enter 鍵搜尋
     document.getElementById('wikiInput').addEventListener("keypress", function(event) {
         if (event.key === "Enter") {
             searchWiki();
