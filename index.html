@@ -14,10 +14,10 @@
         }
         
         /* 標題區塊 */
-        .header-box { text-align: center; margin-bottom: 40px; }
+        .header-box { text-align: center; margin-bottom: 30px; }
         .header-box h1 { color: #333; font-weight: 800; letter-spacing: 1px; }
 
-        /* 搜尋區塊主體 */
+        /* 搜尋區塊 */
         .search-card {
             background: #fff;
             padding: 30px;
@@ -26,6 +26,17 @@
             margin-bottom: 30px;
             border-top: 5px solid #0d6efd;
         }
+
+        /* 今日清單區塊 (新功能) */
+        .todo-card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+            border-left: 5px solid #198754; /* 綠色邊框區分 */
+        }
+        .todo-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 
         /* 圖片樣式 */
         .item-img { 
@@ -47,11 +58,8 @@
             border: 1px solid #cce5ff; 
         }
 
-        /* 搜尋按鈕群組微調 */
-        .btn-group-custom .btn {
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
+        /* 數量輸入框 */
+        .qty-input { width: 80px; text-align: center; }
     </style>
 </head>
 <body>
@@ -60,7 +68,7 @@
     
     <div class="header-box">
         <h1><i class="bi bi-database-fill"></i> FF14 採集原料資料庫</h1>
-        <p class="text-muted">快速查詢採集地點與座標</p>
+        <p class="text-muted">查詢並建立今日採集清單</p>
     </div>
 
     <div class="search-card">
@@ -72,36 +80,55 @@
             <input type="text" id="searchInput" class="form-control" 
                 placeholder="例如：鐵礦 (請輸入完整名稱)" 
                 onkeypress="handleEnter(event)">
+            <button class="btn btn-primary" onclick="searchDB()">
+                <i class="bi bi-search"></i> 搜尋
+            </button>
         </div>
 
-        <div class="d-flex flex-wrap gap-2 justify-content-center">
-            <button class="btn btn-primary px-4 py-2" onclick="searchDB()">
-                <i class="bi bi-server"></i> 查詢本資料庫
-            </button>
-            
-            <button class="btn btn-outline-success px-3 py-2" onclick="searchExternal('wiki')">
+        <div class="d-flex justify-content-center">
+            <button class="btn btn-outline-success btn-sm" onclick="searchWiki()">
                 <i class="bi bi-globe2"></i> 搜 灰機Wiki
-            </button>
-            <button class="btn btn-outline-secondary px-3 py-2" onclick="searchExternal('teamcraft')">
-                <img src="https://ffxivteamcraft.com/assets/logo.png" width="20" style="vertical-align:text-bottom"> 搜 Teamcraft
             </button>
         </div>
         
         <div class="text-center mt-2">
-            <small class="text-muted">提示：本資料庫使用精準搜尋，請輸入完整物品名稱 (例如輸入「鐵礦」不會顯示「玄鐵礦」)</small>
+            <small class="text-muted">提示：本資料庫使用精準搜尋 (輸入「鐵礦」不會顯示「玄鐵礦」)</small>
+        </div>
+    </div>
+
+    <div id="todoSection" class="todo-card d-none">
+        <div class="todo-header">
+            <h4 class="m-0 text-success"><i class="bi bi-clipboard-check-fill"></i> 今日採集清單</h4>
+            <button class="btn btn-sm btn-outline-danger" onclick="clearTodoList()">
+                <i class="bi bi-trash-fill"></i> 清空清單
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle mb-0">
+                <thead class="table-success">
+                    <tr>
+                        <th width="30%">名稱</th>
+                        <th width="30%">地點</th>
+                        <th width="20%">數量</th>
+                        <th width="20%">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="todoBody">
+                    </tbody>
+            </table>
         </div>
     </div>
 
     <div class="table-responsive bg-white shadow-sm p-3 rounded d-none" id="resultContainer">
+        <h5 class="mb-3 text-primary"><i class="bi bi-list-ul"></i> 搜尋結果</h5>
         <table class="table table-hover align-middle mb-0">
             <thead class="table-primary">
                 <tr>
-                    <th width="80" class="text-center">圖片</th>
+                    <th width="60" class="text-center">圖片</th>
                     <th width="20%">原料名稱</th>
                     <th width="20%">地圖</th>
-                    <th width="25%">採集地點 (座標)</th>
-                    <th>備註</th>
-                </tr>
+                    <th width="25%">座標</th>
+                    <th width="15%">功能</th> </tr>
             </thead>
             <tbody id="tableBody">
                 </tbody>
@@ -120,12 +147,12 @@
 
 <script>
     // ================= 設定區 =================
-    // 您的 Google Sheet CSV 連結
     const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSKLU1K1ol-mP7n2gz7clz522QmjoTAMRfz1lxSKjBwTPMvC5eMimPycZ-RsknpuYkUPaWmHWqj-QNe/pub?output=csv'; 
     // ==========================================
 
-    let allData = []; // 存放下載後的完整資料
+    let allData = []; // 完整資料庫
     let isDataLoaded = false;
+    let todoList = []; // 今日清單資料 [ {name, map, loc, count, img} ]
 
     // 頁面載入後自動執行
     document.addEventListener('DOMContentLoaded', loadData);
@@ -136,14 +163,12 @@
             download: true,
             header: true,
             complete: function(results) {
-                // 過濾掉空行
                 allData = results.data.filter(row => row['原料名稱'] && row['原料名稱'].trim() !== '');
                 isDataLoaded = true;
                 
-                // 資料讀取完畢，隱藏載入動畫，顯示準備就緒
                 const msg = document.getElementById('statusMsg');
-                msg.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i> 資料庫已就緒，請輸入關鍵字搜尋。';
-                setTimeout(() => { msg.style.display = 'none'; }, 2000); // 2秒後隱藏提示
+                msg.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i> 資料庫已就緒。';
+                setTimeout(() => { msg.style.display = 'none'; }, 2000);
             },
             error: function(err) {
                 console.error(err);
@@ -153,21 +178,20 @@
         });
     }
 
-    // --- 2. 搜尋本資料庫 (精準比對) ---
+    // --- 2. 搜尋功能 (精準比對) ---
+    // 為了讓按鈕能抓到資料，我們使用一個全域變數暫存當前搜尋結果
+    let currentSearchResults = [];
+
     function searchDB() {
-        if (!isDataLoaded) {
-            alert("資料庫正在讀取中，請稍候...");
-            return;
-        }
+        if (!isDataLoaded) { alert("資料庫讀取中..."); return; }
 
         const input = document.getElementById('searchInput').value.trim();
         const resultContainer = document.getElementById('resultContainer');
         const statusMsg = document.getElementById('statusMsg');
         const tbody = document.getElementById('tableBody');
 
-        // 清空舊結果
         tbody.innerHTML = '';
-        statusMsg.style.display = 'block'; // 暫時顯示狀態區
+        statusMsg.style.display = 'block';
 
         if (input === "") {
             statusMsg.innerHTML = "請輸入關鍵字。";
@@ -175,70 +199,137 @@
             return;
         }
 
-        // --- 核心邏輯：精準比對 ---
-        // 條件：原料名稱 "完全等於" 輸入的關鍵字 (忽略前後空白)
-        const results = allData.filter(row => {
-            const itemName = row['原料名稱'] ? row['原料名稱'].trim() : "";
-            return itemName === input; 
+        // 精準比對
+        currentSearchResults = allData.filter(row => {
+            return row['原料名稱'] && row['原料名稱'].trim() === input; 
         });
 
-        if (results.length === 0) {
-            statusMsg.innerHTML = `<span class="text-muted">找不到與「<strong>${input}</strong>」完全相符的資料。<br>請確認名稱是否正確，或嘗試使用外部搜尋。</span>`;
+        if (currentSearchResults.length === 0) {
+            statusMsg.innerHTML = `<span class="text-muted">找不到「<strong>${input}</strong>」。<br>請確認名稱完全正確。</span>`;
             resultContainer.classList.add('d-none');
         } else {
-            statusMsg.style.display = 'none'; // 有資料則隱藏狀態訊息
-            resultContainer.classList.remove('d-none'); // 顯示表格
-            renderTable(results);
+            statusMsg.style.display = 'none';
+            resultContainer.classList.remove('d-none');
+            renderResultTable(currentSearchResults);
         }
     }
 
-    // --- 3. 渲染表格 ---
-    function renderTable(data) {
+    function renderResultTable(data) {
         const tbody = document.getElementById('tableBody');
         
-        // 為了美觀，將資料反轉 (如果 CSV 是舊->新，這裡反轉可能不是必須，視您喜好)
-        // 這裡暫時保持原序，或者您想看最新的資料可以用 .reverse()
-        
-        data.forEach(row => {
+        data.forEach((row, index) => {
             // 處理圖片
             let imgDisplay = '<i class="bi bi-image text-muted" style="font-size: 24px;"></i>';
             let link = row['圖片連結'] ? row['圖片連結'].replace(/'/g, "").trim() : "";
-            
             if(link.startsWith('http')) {
-                imgDisplay = `<img src="${link}" class="item-img" alt="圖" onerror="this.style.display='none'">`;
+                imgDisplay = `<img src="${link}" class="item-img" onerror="this.style.display='none'">`;
             }
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td class="text-center">${imgDisplay}</td>
-                <td class="fw-bold text-primary" style="font-size: 1.1em;">${row['原料名稱']}</td>
-                <td>${row['地圖編號'] ? `<span class="badge badge-map p-2">${row['地圖編號']}</span>` : '-'}</td>
+                <td class="fw-bold text-primary">${row['原料名稱']}</td>
+                <td>${row['地圖編號'] || '-'}</td>
                 <td class="font-monospace">${row['採集地點'] || '-'}</td>
-                <td class="text-muted small">${row['備註'] || ''}</td>
+                <td>
+                    <button class="btn btn-outline-success btn-sm" onclick="addToTodoList(${index})">
+                        <i class="bi bi-plus-lg"></i> 加入
+                    </button>
+                </td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    // --- 4. 外部搜尋功能 ---
-    function searchExternal(site) {
-        const input = document.getElementById('searchInput').value.trim();
-        if (!input) {
-            alert("請先輸入原料名稱！");
+    // --- 3. 今日清單功能 ---
+    
+    // 加入清單
+    function addToTodoList(index) {
+        const item = currentSearchResults[index];
+        if(!item) return;
+
+        const name = item['原料名稱'];
+        
+        // 檢查是否已存在
+        const existingItem = todoList.find(i => i.name === name);
+        
+        if (existingItem) {
+            existingItem.count++; // 存在則數量+1
+        } else {
+            // 不存在則新增
+            todoList.push({
+                name: item['原料名稱'],
+                map: item['地圖編號'] || '-',
+                loc: item['採集地點'] || '-',
+                count: 1
+            });
+        }
+        
+        renderTodoList();
+    }
+
+    // 渲染清單
+    function renderTodoList() {
+        const section = document.getElementById('todoSection');
+        const tbody = document.getElementById('todoBody');
+        tbody.innerHTML = '';
+
+        if (todoList.length === 0) {
+            section.classList.add('d-none'); // 沒資料隱藏區塊
             return;
         }
 
-        let url = '';
-        if (site === 'wiki') {
-            url = `https://www.google.com/search?q=site%3Aff14.huijiwiki.com+${encodeURIComponent(input)}`;
-        } else if (site === 'teamcraft') {
-            url = `https://ffxivteamcraft.com/search?query=${encodeURIComponent(input)}`;
+        section.classList.remove('d-none'); // 有資料顯示區塊
+
+        todoList.forEach((item, idx) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="fw-bold">${item.name}</td>
+                <td class="small text-muted">${item.map} <br> ${item.loc}</td>
+                <td>
+                    <input type="number" class="form-control form-control-sm qty-input" 
+                        value="${item.count}" min="1" 
+                        onchange="updateListCount(${idx}, this.value)">
+                </td>
+                <td>
+                    <button class="btn btn-outline-danger btn-sm" onclick="removeTodoItem(${idx})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // 更新數量
+    function updateListCount(idx, val) {
+        if(val < 1) val = 1;
+        todoList[idx].count = parseInt(val);
+    }
+
+    // 刪除單項
+    function removeTodoItem(idx) {
+        todoList.splice(idx, 1);
+        renderTodoList();
+    }
+
+    // 清空全部
+    function clearTodoList() {
+        if(confirm("確定要清空今日清單嗎？")) {
+            todoList = [];
+            renderTodoList();
         }
+    }
+
+    // --- 4. 外部連結 ---
+    function searchWiki() {
+        const input = document.getElementById('searchInput').value.trim();
+        if (!input) { alert("請先輸入原料名稱！"); return; }
         
+        const url = `https://www.google.com/search?q=site%3Aff14.huijiwiki.com+${encodeURIComponent(input)}`;
         window.open(url, '_blank');
     }
 
-    // 綁定 Enter 鍵觸發資料庫搜尋
     function handleEnter(e) {
         if (e.key === 'Enter') searchDB();
     }
