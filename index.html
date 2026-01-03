@@ -85,11 +85,11 @@
         <table class="table table-hover align-middle mb-0" id="dataTable">
             <thead class="table-primary">
                 <tr>
-                    <th width="10%">加入</th>
+                    <th width="15%">數量 / 加入</th>
                     <th width="10%">圖片</th>
                     <th width="20%">原料名稱 / 關鍵字</th>
                     <th width="15%">地圖編號</th>
-                    <th width="20%">採集地點</th>
+                    <th width="15%">採集地點</th>
                     <th width="25%">備註</th>
                 </tr>
             </thead>
@@ -146,7 +146,6 @@
     // 頁面載入完成後執行
     document.addEventListener('DOMContentLoaded', () => {
         loadData();
-        // 嘗試從 localStorage 讀取舊的清單
         const savedCart = localStorage.getItem('ff14_gathering_cart');
         if (savedCart) {
             cartList = JSON.parse(savedCart);
@@ -160,7 +159,6 @@
             download: true,
             header: true,
             complete: function(results) {
-                // 過濾空行並儲存到全域變數
                 dbData = results.data.filter(row => row['原料名稱'] && row['原料名稱'].trim() !== '');
                 document.getElementById('loadingMsg').style.display = 'none';
             },
@@ -172,7 +170,7 @@
         });
     }
 
-    // --- 功能 2: 搜尋與過濾 (核心更新) ---
+    // --- 功能 2: 搜尋與過濾 ---
     function filterTable() {
         const input = document.getElementById('dbInput').value.trim();
         const resultSection = document.getElementById('searchResultSection');
@@ -180,7 +178,6 @@
         const tbody = document.getElementById('tableBody');
         const noMsg = document.getElementById('noResultMsg');
         
-        // 1. 若無輸入，隱藏整個結果區
         if (!input) {
             resultSection.style.display = 'none';
             addAllBtn.style.display = 'none';
@@ -188,55 +185,42 @@
             return;
         }
 
-        // 2. 顯示結果區並清空舊內容
         resultSection.style.display = 'block';
         tbody.innerHTML = '';
         
-        // 3. 解析關鍵字 (支援空白與換行分隔)
         const keywords = input.split(/[\s\n]+/).filter(k => k);
-        searchResults = []; // 重置結果陣列
+        searchResults = []; 
 
-        // 4. 針對每個關鍵字進行搜尋
         keywords.forEach(k => {
             const upperK = k.toUpperCase();
             
-            // 在資料庫中尋找符合的項目
             const matches = dbData.filter(row => {
                 const name = (row['原料名稱'] || "").trim();
                 const mapId = (row['地圖編號'] || "").toUpperCase();
                 const note = (row['備註'] || "").toUpperCase();
 
-                // 規則：名稱完全符合 OR 地圖/備註包含
                 return name.toUpperCase() === upperK || 
                        mapId.includes(upperK) || 
                        note.includes(upperK);
             });
 
             if (matches.length > 0) {
-                // 如果有找到，加入結果
-                // 使用 concat 允許一個關鍵字對應多筆資料 (例如同名但不同地點，或透過地圖搜尋)
-                // 這裡我們標記 isNotFound = false
                 matches.forEach(m => {
-                    // 為了避免 JS 物件參考問題，我們淺拷貝物件
                     searchResults.push({ ...m, isNotFound: false });
                 });
             } else {
-                // 如果沒找到，建立一個「假」的資料行來顯示
                 searchResults.push({
-                    '原料名稱': k, // 顯示原本輸入的關鍵字
-                    'isNotFound': true // 標記為未找到
+                    '原料名稱': k, 
+                    'isNotFound': true
                 });
             }
         });
 
-        // 5. 渲染搜尋結果
         if (searchResults.length === 0) {
-            noMsg.style.display = 'block'; // 理論上不該發生，除非 keywords 為空
+            noMsg.style.display = 'block'; 
             addAllBtn.style.display = 'none';
         } else {
             noMsg.style.display = 'none';
-            
-            // 檢查是否有「有效」的搜尋結果，決定是否顯示「全部加入」按鈕
             const hasValidResults = searchResults.some(r => !r.isNotFound);
             addAllBtn.style.display = hasValidResults ? 'inline-block' : 'none';
             
@@ -244,7 +228,7 @@
                 const tr = document.createElement('tr');
                 
                 if (row.isNotFound) {
-                    // --- 渲染「無資料」的行 ---
+                    // --- 查無資料 ---
                     tr.classList.add('row-not-found');
                     tr.innerHTML = `
                         <td><button class="btn btn-sm btn-secondary disabled" disabled><i class="bi bi-x-lg"></i></button></td>
@@ -255,18 +239,22 @@
                         </td>
                     `;
                 } else {
-                    // --- 渲染「有資料」的行 ---
+                    // --- 有資料 (新增數量輸入框) ---
                     let imgDisplay = '<span class="text-muted">-</span>';
                     let link = row['圖片連結'] ? row['圖片連結'].replace(/'/g, "").trim() : "";
                     if(link.startsWith('http')) {
                         imgDisplay = `<img src="${link}" class="item-img" alt="圖">`;
                     }
 
+                    // 注意：這裡給輸入框加上 id="search-qty-${index}" 以便後續讀取
                     tr.innerHTML = `
                         <td>
-                            <button class="btn btn-sm btn-success rounded-circle" onclick="addToCartByRowIndex(${index})" title="加入清單">
-                                <i class="bi bi-plus-lg"></i>
-                            </button>
+                            <div class="input-group input-group-sm" style="width: 130px;">
+                                <input type="number" class="form-control" value="1" min="1" id="search-qty-${index}">
+                                <button class="btn btn-success" onclick="addToCartByRowIndex(${index})" title="加入清單">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            </div>
                         </td>
                         <td>${imgDisplay}</td>
                         <td class="fw-bold text-primary">${row['原料名稱']}</td>
@@ -282,39 +270,54 @@
 
     // --- 功能 3: 購物車/清單管理 ---
     
-    // 將當前搜尋結果的第 index 筆加入清單
+    // 加入單項：讀取對應的輸入框數字
     function addToCartByRowIndex(index) {
         const item = searchResults[index];
         if (item && !item.isNotFound) {
-            addToCart(item);
+            const qtyInput = document.getElementById(`search-qty-${index}`);
+            const qty = qtyInput ? parseInt(qtyInput.value) : 1;
+            addToCart(item, qty);
         }
     }
 
-    // 將搜尋結果「全部」加入
+    // 全部加入：讀取所有有效行的輸入框數字
     function addAllSearchResults() {
         if(searchResults.length === 0) return;
         
-        // 只加入有找到資料的項目
-        searchResults.forEach(item => {
+        searchResults.forEach((item, index) => {
             if (!item.isNotFound) {
-                addToCart(item, false); // false 代表先不渲染
+                const qtyInput = document.getElementById(`search-qty-${index}`);
+                const qty = qtyInput ? parseInt(qtyInput.value) : 1;
+                addToCart(item, qty, false); // false 代表先不渲染
             }
         });
         renderCart(); // 最後一次渲染
     }
 
-    // 核心加入邏輯
-    function addToCart(item, autoRender = true) {
+    // 核心加入邏輯 (累加功能)
+    function addToCart(item, quantity = 1, autoRender = true) {
+        // 確保數量至少為 1
+        quantity = Math.max(1, quantity);
+
         // 檢查是否已在清單中
-        const exists = cartList.find(c => c['原料名稱'] === item['原料名稱']);
-        if (!exists) {
+        const existingItem = cartList.find(c => c['原料名稱'] === item['原料名稱']);
+
+        if (existingItem) {
+            // 如果存在，累加數量
+            existingItem.count = parseInt(existingItem.count) + parseInt(quantity);
+            // 視覺回饋：如果原本是完成狀態，新增數量後是否要改回未完成？
+            // 這裡設定：新增後，取消打勾狀態，提醒使用者還沒採完
+            existingItem.checked = false; 
+        } else {
+            // 如果不存在，新增一筆
             cartList.push({
                 ...item,
-                cartId: Date.now() + Math.random(), // 唯一 ID
-                count: 1,      // 預設數量
-                checked: false // 預設未完成
+                cartId: Date.now() + Math.random(),
+                count: parseInt(quantity),
+                checked: false 
             });
         }
+
         if (autoRender) renderCart();
     }
 
@@ -338,7 +341,6 @@
 
         cartList.forEach((item, index) => {
             const tr = document.createElement('tr');
-            // 根據是否 checked 加上樣式
             if (item.checked) tr.classList.add('row-checked');
 
             tr.innerHTML = `
@@ -368,25 +370,21 @@
         saveCart();
     }
 
-    // 切換完成狀態
     function toggleCheck(index) {
         cartList[index].checked = !cartList[index].checked;
         renderCart();
     }
 
-    // 更新數量
     function updateCount(index, val) {
-        cartList[index].count = val;
-        saveCart(); // 只儲存不需重新渲染
+        cartList[index].count = Math.max(1, parseInt(val)); // 確保最小為 1
+        saveCart();
     }
 
-    // 刪除單項
     function deleteFromCart(index) {
         cartList.splice(index, 1);
         renderCart();
     }
 
-    // 清空清單
     function clearCart() {
         if(confirm('確定要清空所有清單嗎？')) {
             cartList = [];
@@ -394,7 +392,6 @@
         }
     }
 
-    // 儲存到 LocalStorage (防止重新整理後消失)
     function saveCart() {
         localStorage.setItem('ff14_gathering_cart', JSON.stringify(cartList));
     }
@@ -407,7 +404,6 @@
             window.open(url, '_blank');
         }
     }
-    // 綁定 Enter 鍵
     document.getElementById('wikiInput').addEventListener("keypress", function(event) {
         if (event.key === "Enter") searchWiki();
     });
