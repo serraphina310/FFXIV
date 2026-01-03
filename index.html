@@ -34,7 +34,7 @@
         /* 採集清單樣式 */
         .todo-done { background-color: #f0f0f0; color: #999; }
         .todo-done td { text-decoration: line-through; }
-        .todo-done input { text-decoration: none; color: #999; } /* 數量框不刪除線 */
+        .todo-done input { text-decoration: none; color: #999; }
 
         .modal-header { background-color: #0d6efd; color: white; }
     </style>
@@ -59,8 +59,11 @@
         <label for="dbInput" class="form-label fw-bold text-primary">
             <i class="bi bi-funnel-fill"></i> 搜尋資料庫 (支援多關鍵字)：
         </label>
+        <div class="alert alert-info py-2 mb-2">
+            <small><i class="bi bi-info-circle"></i> 提示：原料名稱為「完全符合」，地圖與備註為「部分符合」。多個關鍵字請用空白或換行分隔。</small>
+        </div>
         <textarea id="dbInput" class="form-control mb-3" rows="5" 
-            placeholder="在此輸入關鍵字，例如：鐵礦 靈銀礦&#10;支援多行輸入或空白分隔" 
+            placeholder="在此輸入關鍵字，例如：&#10;鐵礦&#10;靈銀礦&#10;(支援一次搜尋多項物品)" 
             onkeyup="handleSearch()"></textarea>
         
         <div class="d-flex gap-2">
@@ -125,7 +128,7 @@
                 </table>
             </div>
             <div id="noResultMsg" class="text-center p-4 text-muted d-none">
-                沒有找到符合的資料，請嘗試其他關鍵字。
+                沒有找到符合的資料。<br>如果是原料名稱，請確認輸入完整全名 (例如：輸入「鐵礦」而非「鐵」)。
             </div>
             <div id="startMsg" class="text-center p-4 text-muted">
                 請在上方輸入關鍵字以開始搜尋。
@@ -190,14 +193,13 @@
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdE3CRPxQkwhd9-RW644BY6oCZUPyrenHAV0UlqfBapt543okqNREiCMmTKW31A9h-Sg/exec';
     // ==========================================
 
-    // 全域變數
-    let allData = [];         // 儲存所有 CSV 資料
-    let currentResults = [];  // 儲存目前的搜尋結果
-    let shoppingList = [];    // 採集清單
+    let allData = [];         
+    let currentResults = [];  
+    let shoppingList = [];    
 
     document.addEventListener('DOMContentLoaded', () => {
         loadData();
-        loadCartFromStorage(); // 嘗試讀取已儲存的清單 (選擇性功能)
+        loadCartFromStorage(); 
     });
 
     // --- 1. 資料讀取 ---
@@ -206,13 +208,9 @@
             download: true,
             header: true,
             complete: function(results) {
-                // 預處理資料：過濾空行並反轉順序
                 allData = results.data.filter(row => row['原料名稱'] && row['原料名稱'].trim() !== '').reverse();
-                
                 document.getElementById('loadingMsg').style.display = 'none';
                 document.getElementById('resultContainer').classList.remove('d-none');
-                
-                // 初始狀態不顯示表格內容，只顯示"請輸入..."
             },
             error: function(err) {
                 console.error(err);
@@ -222,7 +220,7 @@
         });
     }
 
-    // --- 2. 搜尋邏輯 ---
+    // --- 2. 搜尋邏輯 (核心修改處) ---
     function handleSearch() {
         const input = document.getElementById('dbInput').value.trim().toUpperCase();
         const resultBody = document.getElementById('resultBody');
@@ -230,11 +228,9 @@
         const noResultMsg = document.getElementById('noResultMsg');
         const addAllBtn = document.getElementById('addAllBtn');
 
-        // 清空顯示
         resultBody.innerHTML = '';
         currentResults = [];
 
-        // 若無輸入，顯示初始提示
         if (!input) {
             startMsg.classList.remove('d-none');
             noResultMsg.classList.add('d-none');
@@ -244,15 +240,31 @@
 
         startMsg.classList.add('d-none');
 
-        // 分割關鍵字 (支援空白或換行)
+        // 分割關鍵字
         const keywords = input.split(/[\s,]+/).filter(k => k);
 
         // 篩選資料
         currentResults = allData.filter(row => {
-            // 組合所有欄位文字進行比對
-            const rowText = `${row['原料名稱']} ${row['地圖編號']} ${row['採集地點']} ${row['備註']}`.toUpperCase();
-            // 檢查是否包含所有關鍵字 (AND 邏輯)
-            return keywords.every(k => rowText.includes(k));
+            // 修正邏輯：
+            // 1. 使用 some (OR 邏輯)，只要符合其中一個關鍵字就顯示，解決多關鍵字沒資料問題
+            // 2. 原料名稱使用 === (完全符合)，解決「鐵礦」顯示「玄鐵礦」問題
+            // 3. 地圖/備註使用 includes (部分符合)，保持搜尋地圖的彈性
+            
+            const name = row['原料名稱'] ? row['原料名稱'].toUpperCase().trim() : '';
+            const mapId = row['地圖編號'] ? row['地圖編號'].toUpperCase() : '';
+            const loc = row['採集地點'] ? row['採集地點'].toUpperCase() : '';
+            const note = row['備註'] ? row['備註'].toUpperCase() : '';
+
+            return keywords.some(k => {
+                // 原料名稱：必須完全相等
+                const isNameMatch = (name === k);
+                // 其他欄位：包含即可
+                const isMapMatch = mapId.includes(k);
+                const isLocMatch = loc.includes(k);
+                const isNoteMatch = note.includes(k);
+
+                return isNameMatch || isMapMatch || isLocMatch || isNoteMatch;
+            });
         });
 
         if (currentResults.length === 0) {
@@ -260,17 +272,16 @@
             addAllBtn.classList.add('d-none');
         } else {
             noResultMsg.classList.add('d-none');
-            addAllBtn.classList.remove('d-none'); // 顯示一鍵加入按鈕
+            addAllBtn.classList.remove('d-none');
             renderResults(currentResults);
         }
     }
 
-    // 渲染搜尋結果表格
+    // 渲染搜尋結果
     function renderResults(data) {
         const tbody = document.getElementById('resultBody');
         
         data.forEach((row, index) => {
-            // 處理圖片連結
             let imgDisplay = '<span class="text-muted">-</span>';
             let link = row['圖片連結'] ? row['圖片連結'].replace(/'/g, "").trim() : "";
             if(link.startsWith('http')) {
@@ -298,17 +309,13 @@
 
     // --- 3. 採集清單邏輯 ---
 
-    // 加入單一項目 (從 currentResults 的索引)
     function addToCartByRow(index) {
         const item = currentResults[index];
         addToCart(item);
     }
 
-    // 加入項目到清單核心函式
     function addToCart(item) {
-        // 檢查是否已存在 (簡單比對名稱與地圖)
         const exists = shoppingList.find(i => i.name === item['原料名稱'] && i.map === item['地圖編號']);
-        
         if (!exists) {
             shoppingList.push({
                 name: item['原料名稱'],
@@ -319,13 +326,9 @@
                 checked: false
             });
             renderCart();
-        } else {
-            // 若已存在，提示一下或數量+1 (這裡選擇不自動加數量，避免誤觸)
-            // alert('該項目已在清單中'); 
         }
     }
 
-    // 一鍵加入所有搜尋結果
     function addAllVisibleToCart() {
         if(currentResults.length > 50) {
             if(!confirm(`確定要一次加入 ${currentResults.length} 筆資料嗎？`)) return;
@@ -350,7 +353,6 @@
         alert(`已加入 ${count} 筆新資料到清單。`);
     }
 
-    // 渲染採集清單
     function renderCart() {
         const tbody = document.getElementById('cartBody');
         tbody.innerHTML = '';
@@ -363,7 +365,7 @@
 
         shoppingList.forEach((item, index) => {
             const tr = document.createElement('tr');
-            if (item.checked) tr.classList.add('todo-done'); // 灰階變深樣式
+            if (item.checked) tr.classList.add('todo-done');
 
             tr.innerHTML = `
                 <td class="text-center">
@@ -399,7 +401,7 @@
 
     function updateCartQty(index, val) {
         shoppingList[index].qty = val;
-        saveCartToStorage(); // 數量變更也要存
+        saveCartToStorage();
     }
 
     function removeCartItem(index) {
@@ -414,7 +416,6 @@
         }
     }
 
-    // (選用) 本地儲存功能，防止重新整理後清單消失
     function saveCartToStorage() {
         localStorage.setItem('ff14_gathering_list', JSON.stringify(shoppingList));
     }
@@ -426,7 +427,7 @@
         }
     }
 
-    // --- 4. 其他功能 (Wiki, 新增資料) ---
+    // --- 4. 其他功能 ---
     function searchWiki() {
         const query = document.getElementById('wikiInput').value;
         if (query) {
