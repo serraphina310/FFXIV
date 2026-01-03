@@ -67,7 +67,7 @@
             placeholder="在此輸入關鍵字，例如：&#10;鐵礦&#10;靈銀礦&#10;Lakeland&#10;(支援換行或空白分隔)" 
             onkeyup="filterTable()"></textarea>
         <div class="mt-2 d-flex justify-content-between align-items-center">
-            <small class="text-muted">提示：原料名稱需「完全符合」才會顯示；地圖或備註可「部分符合」。</small>
+            <small class="text-muted">提示：加入清單後，該項目的關鍵字會自動從搜尋框中移除。</small>
             <button class="btn btn-outline-primary btn-sm" id="addAllBtn" onclick="addAllSearchResults()" style="display: none;">
                 <i class="bi bi-check-all"></i> 將搜尋結果全部加入清單
             </button>
@@ -188,12 +188,14 @@
         resultSection.style.display = 'block';
         tbody.innerHTML = '';
         
+        // 取得關鍵字陣列
         const keywords = input.split(/[\s\n]+/).filter(k => k);
         searchResults = []; 
 
         keywords.forEach(k => {
             const upperK = k.toUpperCase();
             
+            // 尋找符合的資料
             const matches = dbData.filter(row => {
                 const name = (row['原料名稱'] || "").trim();
                 const mapId = (row['地圖編號'] || "").toUpperCase();
@@ -205,13 +207,20 @@
             });
 
             if (matches.length > 0) {
+                // 如果找到，將 sourceKeyword (原始關鍵字) 記錄下來，以便之後刪除
                 matches.forEach(m => {
-                    searchResults.push({ ...m, isNotFound: false });
+                    searchResults.push({ 
+                        ...m, 
+                        isNotFound: false,
+                        sourceKeyword: k 
+                    });
                 });
             } else {
+                // 沒找到
                 searchResults.push({
                     '原料名稱': k, 
-                    'isNotFound': true
+                    isNotFound: true,
+                    sourceKeyword: k
                 });
             }
         });
@@ -239,19 +248,18 @@
                         </td>
                     `;
                 } else {
-                    // --- 有資料 (新增數量輸入框) ---
+                    // --- 有資料 ---
                     let imgDisplay = '<span class="text-muted">-</span>';
                     let link = row['圖片連結'] ? row['圖片連結'].replace(/'/g, "").trim() : "";
                     if(link.startsWith('http')) {
                         imgDisplay = `<img src="${link}" class="item-img" alt="圖">`;
                     }
 
-                    // 注意：這裡給輸入框加上 id="search-qty-${index}" 以便後續讀取
                     tr.innerHTML = `
                         <td>
                             <div class="input-group input-group-sm" style="width: 130px;">
                                 <input type="number" class="form-control" value="1" min="1" id="search-qty-${index}">
-                                <button class="btn btn-success" onclick="addToCartByRowIndex(${index})" title="加入清單">
+                                <button class="btn btn-success" onclick="addToCartByRowIndex(${index})" title="加入並從搜尋中移除">
                                     <i class="bi bi-plus-lg"></i>
                                 </button>
                             </div>
@@ -269,47 +277,71 @@
     }
 
     // --- 功能 3: 購物車/清單管理 ---
+
+    // 移除輸入框中的特定關鍵字
+    function removeKeywordFromInput(keyword) {
+        const input = document.getElementById('dbInput');
+        const originalText = input.value;
+        
+        // 建立正規表達式，不分大小寫，只取代第一個找到的 (通常是使用者剛輸入的那個)
+        // 使用 escape 避免關鍵字中有特殊符號導致 Regex 錯誤
+        const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escapedKeyword, 'i');
+        
+        // 取代為空字串
+        input.value = originalText.replace(regex, '');
+    }
     
-    // 加入單項：讀取對應的輸入框數字
+    // 加入單項
     function addToCartByRowIndex(index) {
         const item = searchResults[index];
         if (item && !item.isNotFound) {
+            // 1. 取得數量並加入清單
             const qtyInput = document.getElementById(`search-qty-${index}`);
             const qty = qtyInput ? parseInt(qtyInput.value) : 1;
             addToCart(item, qty);
+
+            // 2. 從搜尋框移除該關鍵字
+            if (item.sourceKeyword) {
+                removeKeywordFromInput(item.sourceKeyword);
+            }
+
+            // 3. 重新搜尋 (更新介面)
+            filterTable();
         }
     }
 
-    // 全部加入：讀取所有有效行的輸入框數字
+    // 全部加入
     function addAllSearchResults() {
         if(searchResults.length === 0) return;
         
+        // 1. 迴圈加入所有有效項目
         searchResults.forEach((item, index) => {
             if (!item.isNotFound) {
                 const qtyInput = document.getElementById(`search-qty-${index}`);
                 const qty = qtyInput ? parseInt(qtyInput.value) : 1;
-                addToCart(item, qty, false); // false 代表先不渲染
+                addToCart(item, qty, false); // 先不渲染，最後一次渲染
             }
         });
-        renderCart(); // 最後一次渲染
+        
+        // 2. 渲染購物車
+        renderCart(); 
+        
+        // 3. 清空搜尋框並重置搜尋結果
+        document.getElementById('dbInput').value = '';
+        filterTable();
     }
 
     // 核心加入邏輯 (累加功能)
     function addToCart(item, quantity = 1, autoRender = true) {
-        // 確保數量至少為 1
         quantity = Math.max(1, quantity);
 
-        // 檢查是否已在清單中
         const existingItem = cartList.find(c => c['原料名稱'] === item['原料名稱']);
 
         if (existingItem) {
-            // 如果存在，累加數量
             existingItem.count = parseInt(existingItem.count) + parseInt(quantity);
-            // 視覺回饋：如果原本是完成狀態，新增數量後是否要改回未完成？
-            // 這裡設定：新增後，取消打勾狀態，提醒使用者還沒採完
-            existingItem.checked = false; 
+            existingItem.checked = false; // 新增數量後，取消打勾狀態
         } else {
-            // 如果不存在，新增一筆
             cartList.push({
                 ...item,
                 cartId: Date.now() + Math.random(),
@@ -332,7 +364,6 @@
             return;
         }
 
-        // 排序：依照地圖編號 (Map ID) 升冪
         cartList.sort((a, b) => {
             const mapA = (a['地圖編號'] || "").toString();
             const mapB = (b['地圖編號'] || "").toString();
@@ -376,7 +407,7 @@
     }
 
     function updateCount(index, val) {
-        cartList[index].count = Math.max(1, parseInt(val)); // 確保最小為 1
+        cartList[index].count = Math.max(1, parseInt(val));
         saveCart();
     }
 
