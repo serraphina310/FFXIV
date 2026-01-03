@@ -28,6 +28,13 @@
             text-decoration: line-through; 
         }
         .row-checked img { opacity: 0.5; grayscale: 100%; }
+
+        /* 查無資料的行樣式 */
+        .row-not-found {
+            background-color: #fff5f5;
+            color: #999;
+            font-style: italic;
+        }
         
         /* 表格微調 */
         .table td { vertical-align: middle; }
@@ -80,7 +87,7 @@
                 <tr>
                     <th width="10%">加入</th>
                     <th width="10%">圖片</th>
-                    <th width="20%">原料名稱</th>
+                    <th width="20%">原料名稱 / 關鍵字</th>
                     <th width="15%">地圖編號</th>
                     <th width="20%">採集地點</th>
                     <th width="25%">備註</th>
@@ -89,7 +96,7 @@
             <tbody id="tableBody">
                 </tbody>
         </table>
-        <div id="noResultMsg" class="text-center text-muted p-3" style="display: none;">沒有找到符合的資料</div>
+        <div id="noResultMsg" class="text-center text-muted p-3" style="display: none;">沒有符合的結果</div>
     </div>
 
     <div class="section-box border border-success border-2">
@@ -139,7 +146,7 @@
     // 頁面載入完成後執行
     document.addEventListener('DOMContentLoaded', () => {
         loadData();
-        // 嘗試從 localStorage 讀取舊的清單 (選擇性功能，若不需要可移除)
+        // 嘗試從 localStorage 讀取舊的清單
         const savedCart = localStorage.getItem('ff14_gathering_cart');
         if (savedCart) {
             cartList = JSON.parse(savedCart);
@@ -165,7 +172,7 @@
         });
     }
 
-    // --- 功能 2: 搜尋與過濾 ---
+    // --- 功能 2: 搜尋與過濾 (核心更新) ---
     function filterTable() {
         const input = document.getElementById('dbInput').value.trim();
         const resultSection = document.getElementById('searchResultSection');
@@ -181,58 +188,93 @@
             return;
         }
 
-        // 2. 顯示結果區
+        // 2. 顯示結果區並清空舊內容
         resultSection.style.display = 'block';
         tbody.innerHTML = '';
         
         // 3. 解析關鍵字 (支援空白與換行分隔)
         const keywords = input.split(/[\s\n]+/).filter(k => k);
+        searchResults = []; // 重置結果陣列
 
-        // 4. 執行過濾邏輯
-        searchResults = dbData.filter(row => {
-            const name = (row['原料名稱'] || "").trim();
-            const mapId = (row['地圖編號'] || "").toUpperCase();
-            const note = (row['備註'] || "").toUpperCase();
+        // 4. 針對每個關鍵字進行搜尋
+        keywords.forEach(k => {
+            const upperK = k.toUpperCase();
+            
+            // 在資料庫中尋找符合的項目
+            const matches = dbData.filter(row => {
+                const name = (row['原料名稱'] || "").trim();
+                const mapId = (row['地圖編號'] || "").toUpperCase();
+                const note = (row['備註'] || "").toUpperCase();
 
-            // 規則：只要有「任何一個」關鍵字符合條件，該行就保留
-            return keywords.some(k => {
-                const upperK = k.toUpperCase();
-                // 條件 A: 原料名稱必須「完全符合」關鍵字 (大小寫不敏感)
-                // 條件 B: 地圖編號或備註 只要「包含」關鍵字即可
+                // 規則：名稱完全符合 OR 地圖/備註包含
                 return name.toUpperCase() === upperK || 
                        mapId.includes(upperK) || 
                        note.includes(upperK);
             });
+
+            if (matches.length > 0) {
+                // 如果有找到，加入結果
+                // 使用 concat 允許一個關鍵字對應多筆資料 (例如同名但不同地點，或透過地圖搜尋)
+                // 這裡我們標記 isNotFound = false
+                matches.forEach(m => {
+                    // 為了避免 JS 物件參考問題，我們淺拷貝物件
+                    searchResults.push({ ...m, isNotFound: false });
+                });
+            } else {
+                // 如果沒找到，建立一個「假」的資料行來顯示
+                searchResults.push({
+                    '原料名稱': k, // 顯示原本輸入的關鍵字
+                    'isNotFound': true // 標記為未找到
+                });
+            }
         });
 
         // 5. 渲染搜尋結果
         if (searchResults.length === 0) {
-            noMsg.style.display = 'block';
+            noMsg.style.display = 'block'; // 理論上不該發生，除非 keywords 為空
             addAllBtn.style.display = 'none';
         } else {
             noMsg.style.display = 'none';
-            addAllBtn.style.display = 'inline-block'; // 顯示「全部加入」按鈕
+            
+            // 檢查是否有「有效」的搜尋結果，決定是否顯示「全部加入」按鈕
+            const hasValidResults = searchResults.some(r => !r.isNotFound);
+            addAllBtn.style.display = hasValidResults ? 'inline-block' : 'none';
             
             searchResults.forEach((row, index) => {
-                let imgDisplay = '<span class="text-muted">-</span>';
-                let link = row['圖片連結'] ? row['圖片連結'].replace(/'/g, "").trim() : "";
-                if(link.startsWith('http')) {
-                    imgDisplay = `<img src="${link}" class="item-img" alt="圖">`;
-                }
-
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>
-                        <button class="btn btn-sm btn-success rounded-circle" onclick="addToCartByRowIndex(${index})" title="加入清單">
-                            <i class="bi bi-plus-lg"></i>
-                        </button>
-                    </td>
-                    <td>${imgDisplay}</td>
-                    <td class="fw-bold text-primary">${row['原料名稱']}</td>
-                    <td>${row['地圖編號'] || ''}</td>
-                    <td>${row['採集地點'] || ''}</td>
-                    <td><small class="text-muted">${row['備註'] || ''}</small></td>
-                `;
+                
+                if (row.isNotFound) {
+                    // --- 渲染「無資料」的行 ---
+                    tr.classList.add('row-not-found');
+                    tr.innerHTML = `
+                        <td><button class="btn btn-sm btn-secondary disabled" disabled><i class="bi bi-x-lg"></i></button></td>
+                        <td>-</td>
+                        <td class="fw-bold text-muted">${row['原料名稱']}</td>
+                        <td colspan="3" class="text-start">
+                            <i class="bi bi-exclamation-circle"></i> 資料庫查無此資料
+                        </td>
+                    `;
+                } else {
+                    // --- 渲染「有資料」的行 ---
+                    let imgDisplay = '<span class="text-muted">-</span>';
+                    let link = row['圖片連結'] ? row['圖片連結'].replace(/'/g, "").trim() : "";
+                    if(link.startsWith('http')) {
+                        imgDisplay = `<img src="${link}" class="item-img" alt="圖">`;
+                    }
+
+                    tr.innerHTML = `
+                        <td>
+                            <button class="btn btn-sm btn-success rounded-circle" onclick="addToCartByRowIndex(${index})" title="加入清單">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </td>
+                        <td>${imgDisplay}</td>
+                        <td class="fw-bold text-primary">${row['原料名稱']}</td>
+                        <td>${row['地圖編號'] || ''}</td>
+                        <td>${row['採集地點'] || ''}</td>
+                        <td><small class="text-muted">${row['備註'] || ''}</small></td>
+                    `;
+                }
                 tbody.appendChild(tr);
             });
         }
@@ -243,20 +285,27 @@
     // 將當前搜尋結果的第 index 筆加入清單
     function addToCartByRowIndex(index) {
         const item = searchResults[index];
-        addToCart(item);
+        if (item && !item.isNotFound) {
+            addToCart(item);
+        }
     }
 
     // 將搜尋結果「全部」加入
     function addAllSearchResults() {
         if(searchResults.length === 0) return;
-        searchResults.forEach(item => addToCart(item, false)); // false 代表先不渲染
+        
+        // 只加入有找到資料的項目
+        searchResults.forEach(item => {
+            if (!item.isNotFound) {
+                addToCart(item, false); // false 代表先不渲染
+            }
+        });
         renderCart(); // 最後一次渲染
     }
 
     // 核心加入邏輯
     function addToCart(item, autoRender = true) {
-        // 檢查是否已在清單中 (避免重複？或者是使用者想重複加？這裡假設若已存在則不重複加，或者您可以改為數量+1)
-        // 這裡實作：若名稱相同，則不重複新增，提示已存在 (或直接忽略)
+        // 檢查是否已在清單中
         const exists = cartList.find(c => c['原料名稱'] === item['原料名稱']);
         if (!exists) {
             cartList.push({
