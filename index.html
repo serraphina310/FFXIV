@@ -34,7 +34,7 @@
             color: #6c757d;
         }
         .completed-row td {
-            text-decoration: line-through; /* 文字刪除線 (可選) */
+            text-decoration: line-through; /* 文字刪除線 */
         }
         .qty-input { width: 80px; }
     </style>
@@ -90,7 +90,7 @@
             </button>
         </label>
         <textarea id="dbInput" class="form-control" rows="5" 
-            placeholder="例如：鐵礦 靈銀礦 (空白分隔)... 未輸入時不顯示內容" 
+            placeholder="請輸入「完整原料名稱」以精確搜尋。&#10;支援多項搜尋 (用空白分隔)，例如：&#10;鐵礦 靈銀礦 精金礦" 
             onkeyup="performSearch()"></textarea>
     </div>
 
@@ -169,13 +169,12 @@
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdE3CRPxQkwhd9-RW644BY6oCZUPyrenHAV0UlqfBapt543okqNREiCMmTKW31A9h-Sg/exec';
     // ==========================================
 
-    let allData = [];           // 存放所有 CSV 資料
-    let currentResults = [];    // 存放目前的搜尋結果
-    let gatheringList = [];     // 存放使用者的採集清單
+    let allData = [];           
+    let currentResults = [];    
+    let gatheringList = [];     
 
     document.addEventListener('DOMContentLoaded', () => {
         loadCsvData();
-        // 嘗試從 localStorage 讀取上次的清單
         const saved = localStorage.getItem('ff14GatherList');
         if(saved) {
             gatheringList = JSON.parse(saved);
@@ -189,8 +188,10 @@
             download: true,
             header: true,
             complete: function(results) {
-                // 過濾空行並反轉
-                allData = results.data.filter(r => r['原料名稱'] && r['原料名稱'].trim() !== '').reverse();
+                // 過濾空行並反轉，且確保名稱欄位去除前後空白
+                allData = results.data
+                    .filter(r => r['原料名稱'] && r['原料名稱'].trim() !== '')
+                    .reverse();
                 
                 document.getElementById('loadingMsg').style.display = 'none';
                 document.getElementById('emptyMsg').classList.remove('d-none');
@@ -201,7 +202,7 @@
         });
     }
 
-    // 2. 搜尋邏輯
+    // 2. 搜尋邏輯 (精準度最佳化)
     function performSearch() {
         const input = document.getElementById('dbInput').value.trim().toUpperCase();
         const table = document.getElementById('resultTable');
@@ -216,24 +217,40 @@
             return;
         }
 
-        // 切割關鍵字 (空白或逗號)
         const keywords = input.split(/[\s,]+/).filter(k => k);
 
-        // 過濾資料
+        // --- 核心搜尋修改區 ---
         currentResults = allData.filter(row => {
-            const text = (row['原料名稱'] + row['地圖編號'] + row['採集地點'] + row['備註']).toUpperCase();
-            return keywords.some(k => text.includes(k));
+            // 取得各欄位資料並轉大寫 (確保比對時不分大小寫)
+            const name = row['原料名稱'] ? row['原料名稱'].trim().toUpperCase() : '';
+            const map = row['地圖編號'] ? row['地圖編號'].toUpperCase() : '';
+            const loc = row['採集地點'] ? row['採集地點'].toUpperCase() : '';
+            const note = row['備註'] ? row['備註'].toUpperCase() : '';
+
+            // 檢查是否符合「任一」關鍵字
+            return keywords.some(k => {
+                // A. 原料名稱：採用「完全相符 (Exact Match)」
+                // 這樣搜尋「鐵礦」時，不會顯示「玄鐵礦」
+                if (name === k) return true;
+
+                // B. 地圖、地點、備註：保留「包含 (Includes)」搜尋
+                // 這樣搜尋 "Lakeland" 或 "X:10" 依然能找到資料
+                if (map.includes(k) || loc.includes(k) || note.includes(k)) return true;
+
+                return false;
+            });
         });
+        // -----------------------
 
         if (currentResults.length > 0) {
             renderSearchResults(currentResults);
             table.classList.remove('d-none');
             emptyMsg.classList.add('d-none');
-            addAllBtn.classList.remove('d-none'); // 顯示「全部加入」按鈕
+            addAllBtn.classList.remove('d-none');
         } else {
             table.classList.add('d-none');
             emptyMsg.classList.remove('d-none');
-            emptyMsg.innerText = "找不到相符的資料";
+            emptyMsg.innerText = "找不到完全相符的資料";
             addAllBtn.classList.add('d-none');
         }
     }
@@ -244,7 +261,6 @@
         tbody.innerHTML = '';
 
         data.forEach((row, index) => {
-            // 處理圖片
             let imgDisplay = '-';
             let link = row['圖片連結'] ? row['圖片連結'].replace(/'/g, "").trim() : "";
             if(link.startsWith('http')) imgDisplay = `<img src="${link}" class="item-img">`;
@@ -265,44 +281,36 @@
         });
     }
 
-    // ================= 採集清單功能區 =================
-
-    // 加入單項到清單
+    // ================= 採集清單功能 =================
     function addToList(resultIndex) {
         const item = currentResults[resultIndex];
         const listItem = {
             name: item['原料名稱'],
             map: item['地圖編號'] + (item['採集地點'] ? ` (${item['採集地點']})` : ''),
-            qty: 1,      // 預設數量
-            done: false  // 是否完成
+            qty: 1, done: false
         };
         gatheringList.push(listItem);
         saveAndRenderList();
     }
 
-    // 加入全部
     function addAllVisibleItems() {
         if(confirm(`確定要將目前的 ${currentResults.length} 筆資料全部加入清單嗎？`)) {
             currentResults.forEach(item => {
                 gatheringList.push({
                     name: item['原料名稱'],
                     map: item['地圖編號'] + (item['採集地點'] ? ` (${item['採集地點']})` : ''),
-                    qty: 1,
-                    done: false
+                    qty: 1, done: false
                 });
             });
             saveAndRenderList();
-            // 清空搜尋框與結果
             document.getElementById('dbInput').value = '';
             performSearch();
         }
     }
 
-    // 渲染採集清單
     function renderList() {
         const tbody = document.getElementById('listBody');
         tbody.innerHTML = '';
-
         if (gatheringList.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">清單是空的</td></tr>';
             return;
@@ -313,23 +321,11 @@
             if (item.done) tr.classList.add('completed-row');
 
             tr.innerHTML = `
-                <td>
-                    <input type="checkbox" class="form-check-input" 
-                        ${item.done ? 'checked' : ''} 
-                        onchange="toggleDone(${index})">
-                </td>
+                <td><input type="checkbox" class="form-check-input" ${item.done ? 'checked' : ''} onchange="toggleDone(${index})"></td>
                 <td class="fw-bold">${item.name}</td>
                 <td><small>${item.map}</small></td>
-                <td>
-                    <input type="number" class="form-control form-control-sm qty-input" 
-                        value="${item.qty}" min="1" 
-                        onchange="updateQty(${index}, this.value)">
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-outline-danger border-0" onclick="removeItem(${index})">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </td>
+                <td><input type="number" class="form-control form-control-sm qty-input" value="${item.qty}" min="1" onchange="updateQty(${index}, this.value)"></td>
+                <td><button class="btn btn-sm btn-outline-danger border-0" onclick="removeItem(${index})"><i class="bi bi-x-lg"></i></button></td>
             `;
             tbody.appendChild(tr);
         });
@@ -339,24 +335,20 @@
         gatheringList[index].done = !gatheringList[index].done;
         saveAndRenderList();
     }
-
     function updateQty(index, val) {
         gatheringList[index].qty = val;
         saveAndRenderList();
     }
-
     function removeItem(index) {
         gatheringList.splice(index, 1);
         saveAndRenderList();
     }
-
     function clearList() {
         if(confirm('確定要清空採集清單嗎？')) {
             gatheringList = [];
             saveAndRenderList();
         }
     }
-
     function saveAndRenderList() {
         localStorage.setItem('ff14GatherList', JSON.stringify(gatheringList));
         renderList();
@@ -369,13 +361,11 @@
     }
     document.getElementById('wikiInput').addEventListener("keypress", (e) => { if(e.key==="Enter") searchWiki(); });
 
-    // 新增資料
     function submitData(e) {
         e.preventDefault();
         const btn = document.getElementById('submitBtn');
         const originalText = btn.innerText;
         btn.disabled = true; btn.innerText = "寫入中...";
-        
         fetch(SCRIPT_URL, { method: 'POST', body: new FormData(document.getElementById('addForm')) })
         .then(r => r.json())
         .then(d => {
