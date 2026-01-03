@@ -6,341 +6,285 @@
     <title>FF14 採集原料資料庫</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
     <style>
-        /* 1. 字體設定：強制使用微軟正黑體 */
-        body { 
-            background-color: #f8f9fa; 
-            padding-top: 30px; 
-            font-family: "Microsoft JhengHei", "Heiti TC", sans-serif !important; 
-        }
+        /* 網頁整體樣式設定 */
+        body { background-color: #f8f9fa; padding-top: 20px; font-family: "Microsoft JhengHei", sans-serif; }
         
-        .header-box { text-align: center; margin-bottom: 25px; }
-        .header-box h1 { color: #333; font-weight: 800; font-size: 1.8rem; }
-
-        /* 搜尋區塊 */
-        .search-card {
-            background: #fff;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
-            border-top: 4px solid #0d6efd;
-        }
-
-        /* 今日清單區塊 */
-        .todo-card {
-            background: #fff;
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
-            border-left: 4px solid #198754; 
-        }
-        .todo-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-
-        /* 2. 表格緊湊化設定 */
-        .table-compact td, .table-compact th {
-            padding: 4px 8px; /* 縮小內距 */
-            vertical-align: middle;
-            font-size: 0.95rem;
-        }
+        /* Wiki 搜尋區塊樣式 */
+        .wiki-search-box { background: #e9ecef; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 5px solid #0d6efd; }
         
-        /* 圖片縮小以配合緊湊表格 */
-        .item-img { 
-            width: 36px; height: 36px; 
-            border-radius: 4px; 
-            object-fit: cover; 
-            border: 1px solid #dee2e6; 
-            background-color: #f8f9fa; 
-        }
-
-        /* 3. 已完成項目的樣式 (打勾後變色) */
-        .row-done {
-            background-color: #f2f2f2 !important; /* 灰色背景 */
-            color: #adb5bd; /* 淡色文字 */
-        }
-        .row-done .fw-bold {
-            color: #adb5bd !important;
-            text-decoration: line-through; /* 刪除線 */
-        }
+        /* 物品圖片樣式 */
+        .item-img { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; border: 1px solid #ddd; }
         
-        /* 數量輸入框微調 */
-        .qty-input { 
-            width: 60px; 
-            text-align: center; 
-            padding: 2px; 
-            font-size: 0.9rem; 
+        /* 載入中文字樣式 */
+        .loading { text-align: center; color: #666; margin-top: 20px; }
+        
+        /* 標題樣式 */
+        h1 { color: #333; font-weight: 800; letter-spacing: 1px; }
+        
+        /* 資料庫搜尋框美化 */
+        #dbInput { border: 2px solid #0d6efd; background-color: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        
+        /* 右下角懸浮按鈕 (新增資料用) */
+        .btn-float { 
+            position: fixed; bottom: 30px; right: 30px; 
+            border-radius: 50%; width: 60px; height: 60px; 
+            font-size: 24px; box-shadow: 0 4px 15px rgba(13, 110, 253, 0.4); 
+            z-index: 1000; transition: transform 0.2s;
         }
-
-        /* 狀態訊息 */
-        .status-msg { text-align: center; color: #666; margin-top: 20px; font-size: 1rem; }
+        .btn-float:hover { transform: scale(1.1); }
+        
+        /* 彈出視窗標題列顏色 */
+        .modal-header { background-color: #0d6efd; color: white; }
     </style>
 </head>
 <body>
 
 <div class="container pb-5">
-    
-    <div class="header-box">
-        <h1><i class="bi bi-database-fill"></i> FF14 採集原料資料庫</h1>
-        <p class="text-muted small">快速查詢與清單管理</p>
+    <div class="text-center mb-4">
+        <h1><i class="bi bi-database-fill-gear"></i> FF14 採集原料資料庫</h1>
+        <p class="text-muted">即時查詢與回報採集地點</p>
     </div>
 
-    <div class="search-card">
+    <div class="wiki-search-box">
+        <h5><i class="bi bi-search"></i> 搜尋 FF14 灰機 Wiki</h5>
         <div class="input-group">
-            <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-            <input type="text" id="searchInput" class="form-control" 
-                placeholder="輸入原料名稱 (精準搜尋)..." 
-                onkeypress="handleEnter(event)">
-            <button class="btn btn-primary" onclick="searchDB()">搜尋</button>
+            <input type="text" id="wikiInput" class="form-control" placeholder="輸入關鍵字 (例如: 靈銀礦)...">
+            <button class="btn btn-secondary" onclick="searchWiki()">搜尋 Wiki</button>
         </div>
-        <div class="text-end mt-2">
-             <button class="btn btn-link btn-sm text-decoration-none text-success" onclick="searchWiki()">
-                <i class="bi bi-globe2"></i> 搜尋 灰機Wiki
-            </button>
-        </div>
+        <small class="text-muted">將開啟新分頁透過 Google 搜尋 ff14.huijiwiki.com 站內資料</small>
     </div>
 
-    <div id="todoSection" class="todo-card d-none">
-        <div class="todo-header">
-            <h5 class="m-0 text-success"><i class="bi bi-check2-square"></i> 今日採集清單</h5>
-            <button class="btn btn-sm btn-outline-danger py-0" style="font-size: 0.85rem;" onclick="clearTodoList()">
-                清空
-            </button>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-bordered table-sm table-compact mb-0">
-                <thead class="table-success">
-                    <tr>
-                        <th width="5%" class="text-center"><i class="bi bi-check-lg"></i></th>
-                        <th width="30%">名稱</th>
-                        <th width="35%">地點</th>
-                        <th width="15%">數量</th>
-                        <th width="15%">操作</th>
-                    </tr>
-                </thead>
-                <tbody id="todoBody">
-                    </tbody>
-            </table>
-        </div>
+    <hr>
+
+    <div class="mb-3">
+        <label for="dbInput" class="form-label fw-bold text-primary">
+            <i class="bi bi-funnel-fill"></i> 搜尋資料庫 (支援多項物品)：
+        </label>
+        <textarea id="dbInput" class="form-control" rows="1" 
+            placeholder="在此輸入關鍵字，使用空白鍵分隔可搜尋多項物品。例如：鐵礦 靈銀礦" 
+            onkeyup="filterTable()"></textarea>
     </div>
 
-    <div class="table-responsive bg-white shadow-sm p-3 rounded d-none" id="resultContainer">
-        <h6 class="mb-2 text-primary fw-bold"><i class="bi bi-list-ul"></i> 搜尋結果</h6>
-        <table class="table table-hover table-sm table-compact mb-0">
+    <div class="table-responsive bg-white shadow-sm p-3 rounded">
+        <div id="loadingMsg" class="loading">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2">正在從 Google Sheets 讀取資料...</p>
+        </div>
+
+        <table class="table table-hover align-middle d-none" id="dataTable">
             <thead class="table-primary">
                 <tr>
-                    <th width="50" class="text-center">圖</th>
-                    <th width="25%">原料名稱</th>
-                    <th width="25%">地圖</th>
-                    <th width="30%">座標</th>
-                    <th width="15%">加入</th>
+                    <th width="10%">圖片</th>
+                    <th width="20%">原料名稱</th>
+                    <th width="20%">地圖編號</th>
+                    <th width="25%">採集地點</th>
+                    <th width="25%">備註</th>
                 </tr>
             </thead>
             <tbody id="tableBody">
                 </tbody>
         </table>
     </div>
+</div>
 
-    <div id="statusMsg" class="status-msg">
-        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-        <span class="ms-2">正在同步資料庫...</span>
+<button class="btn btn-primary btn-float" data-bs-toggle="modal" data-bs-target="#addModal" title="新增資料">
+    <i class="bi bi-plus-lg"></i>
+</button>
+
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pen-fill"></i> 新增採集資訊</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addForm" onsubmit="submitData(event)">
+                    <div class="mb-3">
+                        <label class="form-label">原料名稱 <span class="text-danger">*</span></label>
+                        <input type="text" name="itemName" class="form-control" required placeholder="例如：靈銀礦">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">地圖編號</label>
+                        <input type="text" name="mapId" class="form-control" placeholder="例如：Lakeland">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">採集地點 (座標)</label>
+                        <input type="text" name="loc" class="form-control" placeholder="例如：X:10.5 Y:20.1">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">圖片連結 (選填)</label>
+                        <input type="text" name="imgLink" class="form-control" placeholder="請貼上圖片網址 (https://...)">
+                        <div class="form-text">這將會儲存在表格的最後一欄</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">備註</label>
+                        <textarea name="note" class="form-control" rows="2"></textarea>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" id="submitBtn" class="btn btn-primary">送出資料</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
-
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-    // ================= 設定區 =================
+    // ================= 設定區 (請確認這裡的連結是否正確) =================
+    
+    // 1. 你的 Google Sheet CSV 發布連結
     const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSKLU1K1ol-mP7n2gz7clz522QmjoTAMRfz1lxSKjBwTPMvC5eMimPycZ-RsknpuYkUPaWmHWqj-QNe/pub?output=csv'; 
-    // ==========================================
+    
+    // 2. 你的 Google Apps Script 網頁應用程式網址 (用於新增資料)
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdE3CRPxQkwhd9-RW644BY6oCZUPyrenHAV0UlqfBapt543okqNREiCMmTKW31A9h-Sg/exec';
+    
+    // =================================================================
 
-    let allData = [];
-    let isDataLoaded = false;
-    let todoList = []; // 結構: { name, map, loc, count, completed: boolean }
-
+    // 當網頁載入完成後，自動執行讀取資料
     document.addEventListener('DOMContentLoaded', loadData);
 
+    // --- 功能 1: 讀取並顯示資料 ---
     function loadData() {
         Papa.parse(SHEET_CSV_URL, {
             download: true,
-            header: true,
+            header: true, // 讓程式知道第一行是標題
             complete: function(results) {
-                allData = results.data.filter(row => row['原料名稱'] && row['原料名稱'].trim() !== '');
-                isDataLoaded = true;
-                
-                const msg = document.getElementById('statusMsg');
-                msg.innerHTML = '<span class="text-success"><i class="bi bi-check-circle-fill"></i> 資料庫已就緒</span>';
-                setTimeout(() => { msg.style.display = 'none'; }, 1500);
+                renderTable(results.data);
+                // 隱藏讀取中訊息，顯示表格
+                document.getElementById('loadingMsg').style.display = 'none';
+                document.getElementById('dataTable').classList.remove('d-none');
             },
             error: function(err) {
                 console.error(err);
-                document.getElementById('statusMsg').innerHTML = `<span class="text-danger">讀取失敗</span>`;
+                document.getElementById('loadingMsg').innerHTML = 
+                    `<span class="text-danger">讀取失敗，請檢查 CSV 連結。<br>錯誤訊息：${err.message}</span>`;
             }
         });
     }
 
-    // --- 搜尋功能 ---
-    let currentSearchResults = [];
-
-    function searchDB() {
-        if (!isDataLoaded) { alert("讀取中..."); return; }
-
-        const input = document.getElementById('searchInput').value.trim();
-        const resultContainer = document.getElementById('resultContainer');
-        const statusMsg = document.getElementById('statusMsg');
+    // 將資料渲染到 HTML 表格中
+    function renderTable(data) {
         const tbody = document.getElementById('tableBody');
-
-        tbody.innerHTML = '';
-        statusMsg.style.display = 'block';
-
-        if (input === "") {
-            statusMsg.innerHTML = "請輸入關鍵字";
-            resultContainer.classList.add('d-none');
-            return;
-        }
-
-        currentSearchResults = allData.filter(row => {
-            return row['原料名稱'] && row['原料名稱'].trim() === input; 
-        });
-
-        if (currentSearchResults.length === 0) {
-            statusMsg.innerHTML = `<span class="text-muted small">找不到「${input}」</span>`;
-            resultContainer.classList.add('d-none');
-        } else {
-            statusMsg.style.display = 'none';
-            resultContainer.classList.remove('d-none');
-            renderResultTable(currentSearchResults);
-        }
-    }
-
-    function renderResultTable(data) {
-        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = ''; 
         
-        data.forEach((row, index) => {
-            let imgDisplay = '<i class="bi bi-image text-muted" style="font-size: 20px;"></i>';
+        // 過濾掉空行，並反轉順序讓新資料在上面
+        const validData = data.filter(row => row['原料名稱'] && row['原料名稱'].trim() !== '');
+
+        validData.reverse().forEach(row => {
+            // 處理圖片顯示邏輯
+            let imgDisplay = '<span class="text-muted">-</span>';
+            // 移除可能存在的單引號並去除空白
             let link = row['圖片連結'] ? row['圖片連結'].replace(/'/g, "").trim() : "";
-            if(link.startsWith('http')) {
-                imgDisplay = `<img src="${link}" class="item-img" onerror="this.style.display='none'">`;
-            }
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td class="text-center">${imgDisplay}</td>
-                <td class="fw-bold text-primary">${row['原料名稱']}</td>
-                <td>${row['地圖編號'] || '-'}</td>
-                <td class="font-monospace small">${row['採集地點'] || '-'}</td>
-                <td>
-                    <button class="btn btn-outline-success btn-sm py-0" style="font-size: 0.8rem;" onclick="addToTodoList(${index})">
-                        <i class="bi bi-plus-lg"></i>
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    // --- 今日清單邏輯 ---
-    
-    function addToTodoList(index) {
-        const item = currentSearchResults[index];
-        if(!item) return;
-
-        const name = item['原料名稱'];
-        const existingItem = todoList.find(i => i.name === name);
-        
-        if (existingItem) {
-            existingItem.count++;
-        } else {
-            todoList.push({
-                name: item['原料名稱'],
-                map: item['地圖編號'] || '-',
-                loc: item['採集地點'] || '-',
-                count: 1,
-                completed: false // 新增完成狀態
-            });
-        }
-        renderTodoList();
-    }
-
-    function renderTodoList() {
-        const section = document.getElementById('todoSection');
-        const tbody = document.getElementById('todoBody');
-        tbody.innerHTML = '';
-
-        if (todoList.length === 0) {
-            section.classList.add('d-none');
-            return;
-        }
-
-        section.classList.remove('d-none');
-
-        todoList.forEach((item, idx) => {
-            const tr = document.createElement('tr');
             
-            // 根據完成狀態加上 CSS class
-            if(item.completed) {
-                tr.classList.add('row-done');
+            if(link.startsWith('http')) {
+                imgDisplay = `<img src="${link}" class="item-img" alt="圖">`;
             }
 
+            // 建立表格列
+            const tr = document.createElement('tr');
+            // 注意：這裡 row['...'] 內的名稱必須對應 Google Sheet 的第一列標題
             tr.innerHTML = `
-                <td class="text-center">
-                    <input type="checkbox" class="form-check-input" 
-                        ${item.completed ? 'checked' : ''} 
-                        onchange="toggleTodoItem(${idx})">
-                </td>
-                <td class="fw-bold">${item.name}</td>
-                <td class="small text-muted">${item.map} ${item.loc}</td>
-                <td>
-                    <input type="number" class="form-control form-control-sm qty-input" 
-                        value="${item.count}" min="1" 
-                        onchange="updateListCount(${idx}, this.value)"
-                        ${item.completed ? 'disabled' : ''}>
-                </td>
-                <td>
-                    <button class="btn btn-outline-danger btn-sm py-0" onclick="removeTodoItem(${idx})">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </td>
+                <td>${imgDisplay}</td>
+                <td class="fw-bold text-primary">${row['原料名稱']}</td>
+                <td>${row['地圖編號'] || ''}</td>
+                <td>${row['採集地點'] || ''}</td>
+                <td><small class="text-muted">${row['備註'] || ''}</small></td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    // 切換完成狀態
-    function toggleTodoItem(idx) {
-        todoList[idx].completed = !todoList[idx].completed;
-        renderTodoList();
-    }
+    // --- 功能 2: 搜尋資料庫 (支援多關鍵字) ---
+    function filterTable() {
+        const input = document.getElementById('dbInput');
+        // 取得輸入值，轉大寫以便不分大小寫搜尋，並去除頭尾空白
+        const filterValue = input.value.toUpperCase().trim();
+        const rows = document.getElementById('tableBody').getElementsByTagName('tr');
+        
+        // 核心邏輯：用空白或逗號切割關鍵字
+        // 例如 "鐵礦 靈銀礦" -> ["鐵礦", "靈銀礦"]
+        const keywords = filterValue.split(/[\s,]+/).filter(k => k); 
 
-    function updateListCount(idx, val) {
-        if(val < 1) val = 1;
-        todoList[idx].count = parseInt(val);
-    }
-
-    function removeTodoItem(idx) {
-        todoList.splice(idx, 1);
-        renderTodoList();
-    }
-
-    function clearTodoList() {
-        if(confirm("確定要清空今日清單嗎？")) {
-            todoList = [];
-            renderTodoList();
+        for (let row of rows) {
+            // 如果沒輸入關鍵字，顯示所有資料
+            if (keywords.length === 0) {
+                row.style.display = ""; 
+                continue;
+            }
+            
+            // 取得該列所有文字內容
+            const text = row.innerText.toUpperCase();
+            
+            // 檢查：該列內容是否包含「任一」關鍵字 (OR 邏輯)
+            // 只要包含其中一個關鍵字，就會顯示
+            const isMatch = keywords.some(k => text.includes(k));
+            
+            row.style.display = isMatch ? "" : "none";
         }
     }
 
-    // --- 外部功能 ---
+    // --- 功能 3: Wiki 搜尋 ---
     function searchWiki() {
-        const input = document.getElementById('searchInput').value.trim();
-        if (!input) { alert("請先輸入原料名稱"); return; }
-        const url = `https://www.google.com/search?q=site%3Aff14.huijiwiki.com+${encodeURIComponent(input)}`;
-        window.open(url, '_blank');
+        const query = document.getElementById('wikiInput').value;
+        if (query) {
+            // 使用 Google 搜尋特定網站 (site:ff14.huijiwiki.com)
+            const url = `https://www.google.com/search?q=site%3Aff14.huijiwiki.com+${encodeURIComponent(query)}`;
+            window.open(url, '_blank');
+        }
     }
+    // 讓 Wiki 搜尋框支援按 Enter 鍵發送
+    document.getElementById('wikiInput').addEventListener("keypress", function(event) {
+        if (event.key === "Enter") searchWiki();
+    });
 
-    function handleEnter(e) {
-        if (e.key === 'Enter') searchDB();
+    // --- 功能 4: 新增資料 (寫入 Google Sheet) ---
+    function submitData(e) {
+        e.preventDefault(); // 防止表單重新整理頁面
+        
+        const btn = document.getElementById('submitBtn');
+        const originalText = btn.innerText;
+        btn.disabled = true;
+        btn.innerText = "正在寫入...";
+
+        const form = document.getElementById('addForm');
+        const formData = new FormData(form);
+
+        fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if(data.result === 'success') {
+                alert('🎉 新增成功！\n資料已寫入 Google Sheet。\n\n(注意：CSV 讀取有約 1-3 分鐘快取延遲，請稍等一下再重新整理網頁)');
+                
+                // 成功後重置表單並關閉視窗
+                form.reset();
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addModal'));
+                modal.hide();
+
+            } else {
+                alert('❌ 寫入失敗：\n' + data.error);
+            }
+        })
+        .catch(err => {
+            alert('❌ 連線錯誤，請檢查 Script URL 是否正確。\n' + err);
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerText = originalText;
+        });
     }
 </script>
 
