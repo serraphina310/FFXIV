@@ -7,13 +7,21 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <style>
-        body { background-color: #f4f4f9; padding-top: 20px; }
+        body { background-color: #f4f4f9; padding-top: 20px; padding-bottom: 50px; }
         .wiki-search-box { background: #e2e3e5; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
-        .item-img { max-width: 50px; max-height: 50px; border-radius: 4px; }
+        .item-img { max-width: 50px; max-height: 50px; border-radius: 4px; object-fit: contain;}
         .loading { text-align: center; color: #666; font-style: italic; }
         h1 { color: #333; font-weight: bold; }
-        /* 讓搜尋框更明顯一點 */
         #dbInput { border: 2px solid #0d6efd; background-color: #fff; }
+        
+        /* 新增按鈕樣式 */
+        .btn-add-data {
+            background-color: #198754; 
+            color: white;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .btn-add-data:hover { background-color: #146c43; color: white; }
     </style>
 </head>
 <body>
@@ -42,7 +50,13 @@
         <textarea id="dbInput" class="form-control" rows="2" 
             placeholder="在此輸入多個關鍵字，請用「空白」或「逗號」分隔。&#10;例如：鐵礦 靈銀礦 雲母" 
             onkeyup="filterTable()"></textarea>
-        <small class="text-muted">支援同時搜尋多個物品，只要符合任一關鍵字即會顯示。</small>
+        
+        <div class="d-flex justify-content-between align-items-start mt-2">
+            <small class="text-muted">支援同時搜尋多個物品，只要符合任一關鍵字即會顯示。</small>
+            <button class="btn btn-add-data btn-sm" data-bs-toggle="modal" data-bs-target="#addDataModal">
+                <i class="bi bi-plus-circle-fill"></i> 找不到資料？新增一筆
+            </button>
+        </div>
     </div>
 
     <div class="table-responsive bg-white shadow-sm p-3 rounded">
@@ -63,13 +77,55 @@
     </div>
 </div>
 
+<div class="modal fade" id="addDataModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title"><i class="bi bi-pencil-square"></i> 新增原料至資料庫</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="addDataForm">
+            <div class="mb-3">
+                <label class="form-label">原料名稱 <span class="text-danger">*</span></label>
+                <input type="text" name="itemName" class="form-control" required placeholder="例如：靈銀礦">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">地圖編號</label>
+                <input type="text" name="mapId" class="form-control" placeholder="例如：Lakeland">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">採集地點 (座標)</label>
+                <input type="text" name="locName" class="form-control" placeholder="例如：X:10 Y:20">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">圖片連結 (選填)</label>
+                <input type="url" name="imgUrl" class="form-control" placeholder="https://...">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">備註</label>
+                <textarea name="note" class="form-control" rows="2" placeholder="採集時間、特殊條件等"></textarea>
+            </div>
+            <div class="d-grid">
+                <button type="submit" id="submitBtn" class="btn btn-success">送出資料</button>
+            </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
 
 <script>
     // configuration
     // ==========================================
-    // 請將下方的連結換成你第一步複製的 "發布到網路" CSV 連結
+    // 1. 讀取用的 CSV 連結 (原有的)
     const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSKLU1K1ol-mP7n2gz7clz522QmjoTAMRfz1lxSKjBwTPMvC5eMimPycZ-RsknpuYkUPaWmHWqj-QNe/pub?output=csv'; 
+    
+    // 2. 寫入用的 GAS 應用程式網址 (請填入第一步部署後產生的網址)
+    const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycbziOLUwDDdfrMO5Ye5We3T0gWKM77VHyKWnjFOWkpBCetqNticJ8lw1vGUctoBkyLdATQ/exec; 
     // ==========================================
 
     // 1. 頁面載入時執行
@@ -89,7 +145,6 @@
             },
             error: function(err) {
                 document.getElementById('loadingMsg').innerText = "讀取失敗，請檢查 CSV 連結是否正確。";
-                console.error("Error:", err);
             }
         });
     }
@@ -104,8 +159,9 @@
 
             const tr = document.createElement('tr');
             
+            // 處理圖片壞圖或無圖片的情況
             const imgHtml = row['圖片連結'] 
-                ? `<img src="${row['圖片連結']}" class="item-img" alt="${row['原料名稱']}">` 
+                ? `<img src="${row['圖片連結']}" class="item-img" onerror="this.style.display='none'">` 
                 : '<span class="text-muted">-</span>';
 
             tr.innerHTML = `
@@ -119,51 +175,36 @@
         });
     }
 
-   // 4. 資料庫內篩選功能 (已更新為：名稱精確搜尋 + 其他欄位模糊搜尋)
+    // 4. 資料庫內篩選功能
     function filterTable() {
         const input = document.getElementById('dbInput');
-        // 取得輸入值，轉大寫，並去除前後空白
         const filterValue = input.value.toUpperCase().trim();
         const table = document.getElementById('dataTable');
         const tr = table.getElementsByTagName('tr');
 
-        // 如果輸入框是空的，顯示所有資料並結束
         if (filterValue === "") {
-            for (let i = 1; i < tr.length; i++) {
-                tr[i].style.display = "";
-            }
+            for (let i = 1; i < tr.length; i++) tr[i].style.display = "";
             return;
         }
 
-        // 切割關鍵字 (支援空白、逗號、換行)
         const keywords = filterValue.split(/[\s,，、\n]+/).filter(k => k.length > 0);
 
-        // 從索引 1 開始迴圈 (跳過標題列)
         for (let i = 1; i < tr.length; i++) {
             const tds = tr[i].getElementsByTagName('td');
-            
-            // 取得各欄位資料 (注意：根據您的表格順序，名稱在索引 1, 地圖在 2, 地點在 3, 備註在 4)
-            // 這裡抓取文字內容並轉大寫以便比對
             const nameText = (tds[1].textContent || tds[1].innerText).trim().toUpperCase();
             const mapText = (tds[2].textContent || tds[2].innerText).toUpperCase();
             const locText = (tds[3].textContent || tds[3].innerText).toUpperCase();
             const noteText = (tds[4].textContent || tds[4].innerText).toUpperCase();
 
             let isMatch = false;
-
-            // 檢查這一行是否符合「任一」關鍵字
             for (let j = 0; j < keywords.length; j++) {
                 const k = keywords[j];
-
-                // 核心邏輯修改：
-                // 1. 如果關鍵字跟「原料名稱」一模一樣 (精確搜尋) -> 符合
-                // 2. 或者，如果關鍵字出現在「地圖」、「地點」或「備註」中 (模糊搜尋) -> 符合
+                // 原料名稱精確比對，其他模糊比對
                 if (nameText === k || mapText.indexOf(k) > -1 || locText.indexOf(k) > -1 || noteText.indexOf(k) > -1) {
                     isMatch = true;
-                    break; // 找到符合的關鍵字就停止檢查該行
+                    break;
                 }
             }
-
             tr[i].style.display = isMatch ? "" : "none";
         }
     }
@@ -178,14 +219,53 @@
             alert("請輸入要搜尋的關鍵字");
         }
     }
-    
-    document.getElementById('wikiInput').addEventListener("keypress", function(event) {
-        if (event.key === "Enter") {
-            searchWiki();
+
+    // 6. 處理新增資料表單 (發送到 GAS)
+    const form = document.getElementById('addDataForm');
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (GAS_EXEC_URL.includes("https://script.google.com/macros/s/AKfycbziOLUwDDdfrMO5Ye5We3T0gWKM77VHyKWnjFOWkpBCetqNticJ8lw1vGUctoBkyLdATQ/exec")) {
+            alert("錯誤：請先在程式碼中設定正確的 GAS 部署網址！");
+            return;
         }
+
+        const btn = document.getElementById('submitBtn');
+        const originalText = btn.innerText;
+        btn.disabled = true;
+        btn.innerText = "傳送中...";
+
+        // 使用 fetch 發送資料
+        const formData = new FormData(form);
+        
+        fetch(GAS_EXEC_URL, {
+            method: 'POST',
+            body: formData,
+            mode: 'no-cors' // 重要：Google Script 跨域需要設為 no-cors (雖然無法讀取回傳值，但能成功發送)
+        })
+        .then(() => {
+            alert("資料已送出！請等待約 1-5 分鐘後重新整理頁面即可看到更新 (Google Sheet 快取延遲)。");
+            form.reset();
+            // 關閉 Modal
+            const modalEl = document.getElementById('addDataModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            modal.hide();
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            alert("發送失敗，請檢查網路或腳本設定。");
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerText = originalText;
+        });
+    });
+    
+    // Enter 鍵觸發 wiki 搜尋
+    document.getElementById('wikiInput').addEventListener("keypress", function(event) {
+        if (event.key === "Enter") searchWiki();
     });
 </script>
 
 </body>
 </html>
-
